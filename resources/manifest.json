@@ -18,13 +18,13 @@
     },
     {
       "name": "fw/app.bin",
-      "size": 1554864,
-      "sha256": "7d9d128bc1d55859b2b1954bbe6aa8c30d147ca83fde6391a1105ac143d11f83"
+      "size": 1688480,
+      "sha256": "8aad8913a12bfb8550496034401c83051275a4feb53445db3399e74ce8327a71"
     },
     {
       "name": "fw/nrf52.bin",
-      "size": 21468,
-      "sha256": "f803f56c3e9a72faa724a90779235abe4f56930e49facc76e14b08b98e8f3f61"
+      "size": 22844,
+      "sha256": "2d2fe2025b27070a411abe4bf6e9e17450ef4c6d04600d4bac068826cdc0c181"
     },
     {
       "name": "icons/star_iconx1.bin",
@@ -1173,13 +1173,13 @@
     },
     {
       "name": "sys.html",
-      "size": 13024,
-      "sha256": "473da1a88ada8cd000857b09911178ae3ac7d3aa03cce05283fc59ac8f4aa51d"
+      "size": 14439,
+      "sha256": "0dabdc4b7421a8b5fa42561e95a8c2216e4f067bd92b5c08afd5d8e9ef4579d0"
     },
     {
       "name": "wryh.bin",
-      "size": 454900,
-      "sha256": "ac778f4edead3a08cddaaee5df31f19a1e326bd1fa4b3a99ca6dedfbb346a0d8"
+      "size": 454968,
+      "sha256": "749ed6ccfd079f95680320c8742b43b8a9b4fb44c08931ef8e1a9899c2ceea0b"
     }
   ]
 }
