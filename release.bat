@@ -33,8 +33,8 @@ echo [3/4] push to main (enter your SSH passphrase when prompted)
 "%GIT%" push origin main
 if errorlevel 1 ( echo [ERR] push failed; pause; exit /b 1 )
 
-echo [4/4] purge jsDelivr CDN cache for instant propagation
-"%CURL%" -s -m 20 -o nul "https://purge.jsdelivr.net/gh/diaoseo/sky_badgedeck_config@main/resources/manifest.json"
+echo [4/4] purge jsDelivr CDN cache for manifest.json + all files it lists
+"%PY%" purge_cdn.py
 
 echo.
 echo [DONE] Pushed to main. Device URL (set this once in sys.html):
