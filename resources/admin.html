@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>徽章管理系统</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:"Microsoft YaHei",system-ui,sans-serif;margin:0;padding:18px;background:#eef1f5;color:#222;font-size:14px}
+h1{font-size:20px;margin:0 0 14px}
+h2{font-size:16px;margin:26px 0 10px;padding-left:9px;border-left:4px solid #4a6cf7}
+.errbox{background:#fde;border:1px solid #f5a;color:#a00;padding:9px 12px;border-radius:6px;margin-bottom:12px;white-space:pre-wrap;font-family:monospace;font-size:12px}
+.okbox{background:#eafaf1;border:1px solid #8c8;color:#076;padding:9px 12px;border-radius:6px;margin-bottom:12px;white-space:pre-wrap;font-family:monospace;font-size:12px}
+.tip{font-size:12px;font-weight:400;margin-left:10px;color:#889}
+.tip.off{color:#c60}
+.tip.on{color:#076}
+.hintbox{background:#fff8e6;border:1px solid #f0d090;color:#a60;padding:7px 10px;border-radius:5px;font-size:12px;margin-bottom:10px}
+.bar{background:#fff;border:1px solid #d5dae2;border-radius:8px;padding:10px 12px;margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.bar .sp{flex:1}
+#status{color:#0a7;font-weight:600}
+button{padding:6px 12px;border:1px solid #c3cad6;background:#fff;border-radius:5px;cursor:pointer;font-size:13px}
+button:hover{background:#eef3ff;border-color:#4a6cf7}
+button.primary{background:#4a6cf7;border-color:#4a6cf7;color:#fff}
+button.danger{background:#fff0f0;border-color:#e88;color:#c33}
+button.mini{padding:2px 8px;font-size:12px}
+select{padding:5px 8px;border:1px solid #c3cad6;border-radius:5px;font-size:13px;background:#fff}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.tabs button{background:#e6eaf2}
+.tabs button.active{background:#4a6cf7;color:#fff;border-color:#4a6cf7}
+
+/* 左右两栏：stretch 让 list 与 editor 等高；list 内部滚动区用绝对定位撑满剩余高度 */
+.layout{display:flex;gap:14px;background:#fff;border:1px solid #d5dae2;border-radius:8px;padding:12px;align-items:stretch}
+.list{position:relative;flex:0 0 236px;width:236px;border-right:1px solid #e3e7ee;padding-right:8px;min-height:320px}
+.listhead{height:24px;line-height:24px;margin-bottom:8px;font-size:12px;color:#667;display:flex;justify-content:space-between;align-items:center;gap:6px}
+.scroll{position:absolute;left:0;right:8px;top:32px;bottom:0;overflow-y:auto;overflow-x:hidden}
+.editor{flex:1;min-width:0}
+
+.item{padding:6px 8px;cursor:pointer;border-radius:4px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item:hover{background:#f2f5fa}
+.item.active{background:#4a6cf7;color:#fff}
+.muted{color:#889;font-size:13px;padding:10px}
+.panel{border:1px solid #e3e7ee;border-radius:6px;margin-bottom:10px;overflow:hidden}
+.panel h4{margin:0;background:#f6f8fb;padding:6px 10px;font-size:12px;color:#556;border-bottom:1px solid #e3e7ee}
+.panel-body{padding:8px 10px}
+.frow{display:flex;align-items:center;gap:8px;margin-bottom:6px;min-height:28px}
+.flabel{width:82px;font-size:12px;color:#556;text-align:right;flex-shrink:0}
+.ftype{width:44px;font-size:10px;color:#9ab;flex-shrink:0}
+.finput{flex:1;padding:4px 7px;border:1px solid #ccd3de;border-radius:4px;font-size:13px;min-width:0}
+.finput[readonly]{background:#f6f8fb;color:#667}
+.fcheck{width:16px;height:16px;flex:0 0 16px;margin:0}
+.fval{font-size:11px;color:#889;flex-shrink:0}
+.kv{display:flex;gap:8px;font-size:12px;padding:2px 0;border-bottom:1px dashed #eef}
+.kv .k{width:82px;color:#889;text-align:right;flex-shrink:0}
+.kv .v{color:#234;font-weight:600;word-break:break-all}
+canvas.icon{border:1px solid #ccd;background:#fafbfc;display:block;image-rendering:pixelated;width:120px;height:120px;max-width:100%}
+.cap{font-size:11px;color:#889;margin:3px 0 10px}
+.btnbar{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.card{border:1px solid #e3e7ee;border-radius:6px;padding:10px;margin-bottom:8px;background:#fcfdff}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px}
+.backbtn{display:none}
+
+/* ================= 移动端适配 =================
+   窄屏改为 master-detail 双视图：
+   默认只显示列表，点条目进入编辑区（顶部有「← 返回列表」）。
+   避免 236px 列表 + 编辑区在 440px 屏上横向溢出、两侧互相挤压。 */
+@media (max-width: 860px){
+  body{padding:10px;font-size:15px}
+  h1{font-size:18px;margin:0 0 10px}
+  h2{font-size:15px;margin:20px 0 8px}
+
+  .bar{padding:8px;gap:6px}
+  .bar button{flex:1 1 30%;min-height:36px;padding:8px 6px}
+  .bar .sp{display:none}
+  .bar select{flex:1 1 40%;min-height:36px}
+  .bar input[type=file]{flex:1 1 100%;font-size:13px}
+  #status{flex:1 1 100%;text-align:right}
+
+  .tabs button{min-height:36px;flex:1 1 30%}
+
+  .layout{flex-direction:column;gap:0;padding:10px}
+  /* 视图互斥：由 JS 在 .layout 上写 data-view="list"|"edit"（缺省按 list 处理） */
+  .layout[data-view="edit"] > .list{display:none}
+  .layout:not([data-view="edit"]) > .editor{display:none}
+
+  .list{flex:none;width:100%;min-height:0;border-right:none;border-bottom:1px solid #e3e7ee;padding-right:0;padding-bottom:6px;margin-bottom:10px;position:static}
+  .list .scroll{position:static;max-height:66vh;overflow-y:auto}
+  .layout[data-view="list"] .list{border-bottom:none;margin-bottom:0}
+
+  .editor{flex:1;width:100%;min-width:0;padding-top:2px}
+  .backbtn{display:block;width:100%;margin-bottom:10px;min-height:38px;background:#eef3ff;border-color:#4a6cf7;color:#4a6cf7;text-align:left}
+
+  /* iOS Safari：input 字号 <16px 会触发页面自动缩放 */
+  .finput,.fcheck,select{min-height:36px}
+  .finput{font-size:16px;padding:6px 9px}
+  .fcheck{width:20px;height:20px;flex:0 0 20px}
+  .flabel{width:74px}
+  .ftype{width:38px}
+  .kv .k{width:74px}
+  .frow{min-height:36px;margin-bottom:8px}
+  .item{padding:10px 8px;font-size:14px}
+  button{min-height:36px}
+  button.mini{min-height:28px}
+  .btnbar{gap:6px}
+  .btnbar button{flex:1 1 30%}
+  .grid{grid-template-columns:1fr}
+  .panel-body{padding:8px}
+  canvas.icon{width:120px;height:120px}
+}
+</style>
+</head>
+<body>
+
+<h1>徽章管理系统</h1>
+<div class="errbox" id="errbox" hidden></div>
+<div class="okbox"  id="okbox"  hidden></div>
+
+<div class="bar">
+  <button id="btnAllstar" onclick="loadAllstar()">⚡ 加载徽章大全</button>
+  <button class="mini" onclick="bootFetch()" title="重新从设备读取全部配置">↻ 重新加载</button>
+  <span class="sp"></span>
+  <span id="dirtyTip" style="font-size:12px;color:#c60"></span>
+  <button onclick="flushAll()">保存全部改动</button>
+  <span id="status">就绪</span>
+</div>
+
+<h2>① 账户徽章管理器 (user_X.json)</h2>
+<div class="tabs" id="userTabs"></div>
+<div class="layout" id="userStarMgr"></div>
+
+<h2>② 徽章管理器 (allstar.json)<span class="tip off" id="allstarTip">未加载</span></h2>
+<div id="allstarHint"></div>
+<div class="layout" id="allstarMgr"></div>
+
+<h2>③ 账户管理 (users.json)</h2>
+<div class="card" id="userMgr"></div>
+
+<script>
+/* ==================================================================
+   1. 全局配置 —— 路径与后端接口集中在此
+   ================================================================== */
+const CONF = {
+  pathAllstar : 'allstar.json',              // 徽章大全
+  pathIndex   : 'index.json',                // 索引
+  pathUsers   : 'users.json',                // 账户管理
+  pathUser    : 'user_{id}.json',            // 账户徽章索引 {id}（star_id / favorite / type）
+  pathUserStar: 'user_{id}/{star}.json',     // ★ 单徽章载荷 {id}/{star}（ndef = NDEF 裸记录）
+  pathStar    : 'stars/{idx}.json',          // 拆分徽章 {idx}
+  pathIcon    : 'icons/star_iconx{img}.bin'  // RGB565 图标 {img}（尺寸自适应，见 iconSide）
+};
+const pUser = id  => CONF.pathUser.replace('{id}',  id);
+const pStar = idx => CONF.pathStar.replace('{idx}', idx);
+const pIcon = img => CONF.pathIcon.replace('{img}', img);
+/* 载荷小文件：user_1/5.json —— star_id 由文件名承载，文件内只有 ndef（NDEF 裸记录，不透明二进制） */
+const pUserStar = (id, star) => `user_${id}/${star}.json`;
+/* dirty 键 → 载荷路径（键形如 payload:1:5） */
+const pUserStarByKey = k => { const rest=k.slice('payload:'.length); const i=rest.indexOf(':'); return pUserStar(rest.slice(0,i), rest.slice(i+1)); };
+const payloadKey = (uid, star) => `payload:${uid}:${star}`;
+
+/* 字段类型定义（严格按真实 JSON）：
+   user_X.json          : star_id=数字 / favorite=布尔 / type=数字（索引，不含 ndef）
+   user_X/{star_id}.json: ndef=NDEF 裸记录（不透明二进制，手机写入后 GET_NDEF 剥 TLV 所得，或 url2ndef --ndef 生成）
+   allstar              : cd=字符串   / type=数字                            */
+const SCHEMA = {
+  userStar: [ // user_X.json 元素（索引三件套，改动只重写这个小文件）
+    {k:'star_id',  t:'number'},
+    {k:'favorite', t:'boolean'},   // ← 布尔
+    {k:'type',     t:'number'}     // ← 数字
+  ],
+  userPayload: [ // user_X/{star_id}.json（载荷，按需懒加载）
+    {k:'ndef',     t:'text'}       // ← NDEF 裸记录（不透明二进制，勿手填 URL 文本）
+  ],
+  allstar : [ // allstar.json 元素（== stars/{idx}.json）
+    {k:'idx',  t:'number'},
+    {k:'img',  t:'text'},
+    {k:'name', t:'text'},
+    {k:'cd',   t:'text'},          // ← 字符串
+    {k:'info', t:'text'},
+    {k:'type', t:'number'}         // ← 数字
+  ]
+};
+const TYPE_TAG = {number:'num', text:'str', boolean:'bool'};
+
+/* ==================================================================
+   2. 后端文件接口（对接 ESP32 内部文件系统）
+   ------------------------------------------------------------------
+   后端需实现 3 个端点（base = /api/fs）：
+     GET    /api/fs?path=allstar.json     → 200，body = 文件原始内容
+     PUT    /api/fs?path=allstar.json     → body = 新内容（raw），返回 "OK"
+                                            Content-Type: application/json（.json）
+                                                          application/octet-stream（.bin）
+                                            后端用 req->getParam("plain", true) 取 raw body
+     DELETE /api/fs?path=stars/5.json     → 返回 {"ok":true}
+   path 为相对于根的相对路径，含子目录（stars/、icons/）。
+   bin 文件按 application/octet-stream 原样透传，勿做编码转换。
+   ================================================================== */
+const API = {
+  base: '/api/fs',
+  mode: 'api',                       // 'api' = 写入设备 | 'dl' = 下载到本地（临时）
+  async read(path){
+    const url = this.mode==='api' ? this.base+'?path='+encodeURIComponent(path) : path;
+    const r = await fetch(url);
+    if(!r.ok){
+    const t = await r.text().catch(()=> '');
+    throw new Error('写入失败 '+path+' → HTTP '+r.status+' ('+t.trim()+')');
+  }
+    return r;
+  },
+  async write(path, data){
+    /* 统一转成字节：字符串 → UTF-8，其余（Uint8Array）直接用 */
+    const bytes = (typeof data==='string') ? new TextEncoder().encode(data) : data;
+    const ct    = isBin(path) ? 'application/octet-stream' : 'application/json';
+    if(this.mode==='api'){
+      /* ★ 关键：raw body + 非表单 Content-Type，
+         后端 ESPAsyncWebServer 才会把内容收进 "plain" 参数 */
+      const r = await fetch(this.base+'?path='+encodeURIComponent(path), {
+        method: 'PUT',
+        headers: {'Content-Type': ct},
+        body: bytes
+      });
+      if(!r.ok) throw new Error('写入失败 '+path+' → HTTP '+r.status);
+      return true;
+    }
+    dl(path, new Blob([bytes], {type: ct}));
+    await sleep(300);                // 多文件时避免被浏览器拦截
+    return true;
+  },
+  async remove(path){
+    if(this.mode==='api'){
+      const r = await fetch(this.base+'?path='+encodeURIComponent(path), {method:'DELETE'});
+      if(!r.ok) throw new Error('删除失败 '+path+' → HTTP '+r.status);
+      return true;
+    }
+    return false;                    // 下载模式：无法删除，交由使用者手动处理
+  }
+};
+function setMode(v){ API.mode=v; log('写入方式：'+(v==='api'?'设备文件系统 (API)':'下载到本地')); }
+
+/* ==================================================================
+   3. 运行时状态
+   ================================================================== */
+const DB = {
+  allstar: null,   // null = 未加载（体积大，按需加载）；数组 = 已加载
+  index: [],
+  users: { next_id: 1, use: 0, users: [] },
+  userStars: {},   // { userId: [ ... ] }                 ← user_X.json（索引）
+  userPayload: {}, // { "payload:uid:star": {ndef} } ← user_X/{star}.json（载荷，懒加载）
+  stars: {},       // { idx: obj } 缓存
+  icons: {},       // { img: Uint8Array } 缓存
+};
+/* 列表数据源：已加载用 allstar（含 name），未加载退回轻量 index */
+const badgeList  = () => DB.allstar || DB.index;
+const allstarOn  = () => DB.allstar !== null;
+const UI = { userId:null, userStarIdx:0, allstarIdx:0, pendingBin:null };
+const dirty = new Set();   // 'allstar' | 'index' | 'users' | 'user:1' | 'star:5' | 'icon:62'
+                           // ★ 新增 'payload:1:5' = 账户1 的 star_id=5 载荷文件 user_1/5.json
+
+/* ==================================================================
+   4. 基础工具
+   ================================================================== */
+const $  = s => document.querySelector(s);
+const el = (tag, cls, txt) => { const e=document.createElement(tag); if(cls)e.className=cls; if(txt!=null)e.textContent=txt; return e; };
+const log = m => { const s=$('#status'); if(s) s.textContent=m; };
+const showErr = m => { const b=$('#errbox'); b.hidden=false; b.textContent='⚠ '+m; console.error(m); };
+const showOk  = m => { const b=$('#okbox');  b.hidden=false; b.textContent='✔ '+m; };
+const clearMsg = () => { $('#errbox').hidden=true; $('#okbox').hidden=true; };
+window.addEventListener('error', e => showErr(e.message + ' @' + e.lineno));
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+const coerce = (v,t) => t==='number' ? ((v===''||v==null)?null:Number(v)) : v;
+const isBin  = p => String(p).endsWith('.bin');
+
+const dl = (name, blob) => { const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); };
+const jsBytes = o => new TextEncoder().encode(JSON.stringify(o,null,2));
+
+/* ---- 载荷 user_X/{star}.json 的「二进制安全」读写 ----
+   ★ 载荷里的 ndef 是「NDEF 裸记录」不透明二进制，记录头 D1 01 F0 … 里含 <0x20 的控制字符，
+     设备端又把它原样内嵌进 JSON 字符串 ⇒ 整个文件并不是合法 JSON
+     （JSON.parse 会抛 Invalid control character），而且经 UTF-8 往返会把 >=0x80 的字节改坏。
+     所以载荷一律按字节 1:1 处理：用 Latin-1 字符串承载 ndef（每字符 = 一个字节）。
+     注意：索引 / stars / users / icons 那些是纯 JSON 或另有字节通路，不受影响。 */
+function bytesToLatin1(u8){ let s=''; for(let i=0;i<u8.length;i++) s+=String.fromCharCode(u8[i]); return s; }
+
+/* 解析载荷字节 → {ndef:<Latin-1 字符串>}；同时容忍原始控制字符与 \uXXXX 转义两种写法 */
+function payloadParseBytes(u8){
+  const txt = bytesToLatin1(u8);
+  const m = /^\s*\{\s*"ndef"\s*:\s*"/.exec(txt);
+  if(!m) return {ndef:''};
+  const out=[]; let i=m[0].length;
+  while(i<txt.length){
+    const c=txt[i];
+    if(c==='\\'){
+      const e=txt[i+1];
+      if(e===undefined) break;
+      if(e==='u'){ out.push(parseInt(txt.substr(i+2,4),16)&0xFF); i+=6; continue; }
+      if(e==='n'){ out.push(10); i+=2; continue; }
+      if(e==='r'){ out.push(13); i+=2; continue; }
+      if(e==='t'){ out.push(9);  i+=2; continue; }
+      if(e==='b'){ out.push(8);  i+=2; continue; }
+      if(e==='f'){ out.push(12); i+=2; continue; }
+      out.push(e.charCodeAt(0)&0xFF); i+=2; continue;      /* \" \\ \/ */
+    }
+    if(c==='"') break;                                      /* 字符串结束 */
+    out.push(c.charCodeAt(0)&0xFF); i++;
+  }
+  return {ndef: bytesToLatin1(Uint8Array.from(out))};
+}
+
+/* 把 {ndef} 编回文件字节；控制字符转义成 \uXXXX 使文件保持合法 JSON */
+function payloadToBytes(o){
+  const s=(o && typeof o.ndef==='string') ? o.ndef : '';
+  const a=[]; const put=t=>{ for(let i=0;i<t.length;i++) a.push(t.charCodeAt(i)&0xFF); };
+  put('{\r\n  "ndef": "');
+  for(let i=0;i<s.length;i++){
+    const b=s.charCodeAt(i)&0xFF;
+    if(b===0x22)      { a.push(0x5C,0x22); }               /* "  */
+    else if(b===0x5C) { a.push(0x5C,0x5C); }               /* \  */
+    else if(b<0x20)   { put('\\u'+('000'+b.toString(16)).slice(-4)); }
+    else               { a.push(b); }                       /* 0x20..0xFF 原样 */
+  }
+  put('"\r\n}\r\n');
+  return Uint8Array.from(a);
+}
+
+/* ---- 从 NFC Tools 抄来的 URL / 整段 HEX → NDEF 裸记录 ----
+   与 tools/url2ndef.py 同构：URI 记录 D1 01 <len> 55 04 <去掉 https:// 的 URL>，
+   "https://" 由 URI 前缀 0x04 编码，**不能**再重复写进字符串。
+   已用 真卡.dump 验证：从真卡反推 URL 再重新生成 → 与原记录逐字节一致（244B），
+   且 s token 解出 sk=SKY-PN-ST-SUM-DF（正确 SKU）。 */
+function hexToBytes(s){
+  const h=(s||'').replace(/[^0-9a-fA-F]/g,'');
+  if(h.length===0 || h.length%2) return null;
+  const a=new Uint8Array(h.length/2);
+  for(let i=0;i<a.length;i++) a[i]=parseInt(h.substr(i*2,2),16);
+  return a;
+}
+function buildNdefFromUrl(url){
+  url=(url||'').trim();
+  if(!url) return {err:'URL 为空'};
+  if(!/^https:\/\//.test(url)) return {err:'URL 必须以 https:// 开头'};
+  const rest=url.slice(8);
+  for(const ch of rest) if(ch.charCodeAt(0)>127) return {err:'URL 含非 ASCII 字符（抄写可能有误）'};
+  const payload=[0x04]; for(const ch of rest) payload.push(ch.charCodeAt(0));
+  if(payload.length>255) return {err:'URL 过长（>254 字节）'};
+  return {bytes:Uint8Array.from([0xD1,0x01,payload.length,0x55,...payload])};
+}
+/* 校验 ?s= token：base64 里应当含 sk= / t= / u= —— URL 抄错会在这里当场暴露 */
+function checkUrlToken(url){
+  const m=/[?&]s=([^&]+)/.exec(url||'');
+  if(!m) return '无 s= 字段';
+  try{
+    let b64=m[1].replace(/-/g,'+').replace(/_/g,'/');
+    b64 += '='.repeat((4-b64.length%4)%4);
+    const raw=atob(b64), kv={};
+    raw.split('&').forEach(p=>{ const i=p.indexOf('='); if(i>0) kv[p.slice(0,i)]=p.slice(i+1); });
+    const miss=['sk','t','u'].filter(k=>!(k in kv));
+    return miss.length ? ('token 缺字段 '+miss.join(',')+' —— URL 很可能抄错')
+                       : ('token OK · sk='+kv.sk);
+  }catch(e){ return 'token 解码失败 —— URL 很可能抄错'; }
+}
+/* 自动识别：https://… → 按 URL 生成；整段十六进制 → 直接当记录用 */
+function ndefFromInput(s){
+  s=(s||'').trim();
+  if(/^https?:\/\//i.test(s)){ const r=buildNdefFromUrl(s); r.tok=checkUrlToken(s); return r; }
+  if(/^[0-9a-fA-F\s,:\-]+$/.test(s)){
+    const b=hexToBytes(s);
+    if(b && b.length>=8) return {bytes:b};
+  }
+  return {err:'无法识别：请粘贴 https:// 开头的 URL，或整段十六进制'};
+}
+
+async function readJSON(p){ const r=await API.read(p); return r.json(); }
+
+/* ---- RGB565 小端 → Canvas ----
+   ★ 尺寸自适应：设备当前是 52×52（5408 字节），但仍兼容旧的 120×120（28800 字节）。
+     边长由字节数反推：side = round(sqrt(len/2))，且必须 side²·2 == len（严格方阵）才认。
+     口径与固件 ui.cpp load_icon() 的双尺寸分支一致。 */
+function iconSide(bytes){
+  if(!bytes || bytes < 4) return 0;
+  const px = bytes/2, side = Math.round(Math.sqrt(px));
+  return (side*side === px) ? side : 0;      // 非严格方阵 → 0（非法）
+}
+/* 图注：按实际字节数显示 52×52 / 120×120 / 无图标 */
+function iconCap(bytes, extra){
+  const s = iconSide(bytes);
+  return '徽章图标预览 · ' + (s ? (s+'×'+s) : '无图标') + ' · RGB565 小端' + (extra||'');
+}
+function drawIcon(cv, buf){
+  const side = iconSide(buf ? buf.length : 0);
+  if(!side){
+    cv.width=cv.height=120;                  // 占位画布尺寸
+    const ctx=cv.getContext('2d');
+    ctx.fillStyle='#f0f2f5'; ctx.fillRect(0,0,120,120);
+    ctx.fillStyle='#9a9'; ctx.font='13px sans-serif'; ctx.fillText('无图标', 8, 22);
+    return 0;
+  }
+  cv.width=side; cv.height=side;
+  const ctx=cv.getContext('2d');
+  const img=ctx.createImageData(side,side);
+  for(let i=0;i<side*side;i++){
+    const v = buf[i*2] | (buf[i*2+1]<<8);            // 小端
+    img.data[i*4]   = (((v>>11)&0x1F)*255/31)|0;
+    img.data[i*4+1] = (((v>>5 )&0x3F)*255/63)|0;
+    img.data[i*4+2] = (( v      &0x1F)*255/31)|0;
+    img.data[i*4+3] = 255;
+  }
+  ctx.putImageData(img,0,0);
+  return side;
+}
+
+/* ---- 资源读取（带缓存 + 并发去重，减少设备请求数） ---- */
+const inflight = new Map();
+async function once(key, fn){
+  if(inflight.has(key)) return inflight.get(key);
+  const p=(async()=>{ try{ return await fn(); } finally{ inflight.delete(key); } })();
+  inflight.set(key,p);
+  return p;
+}
+async function getStar(idx){
+  if(idx==null || idx==='') return null;
+  const k=String(idx);
+  if(DB.stars[k]) return DB.stars[k];
+  return once('s:'+k, async()=>{
+    try{ const o=await readJSON(pStar(idx)); DB.stars[k]=o; return o; } catch(e){ return null; }
+  });
+}
+async function getIcon(img){
+  if(img==null || img==='') return null;
+  const k=String(img);
+  if(DB.icons[k]) return DB.icons[k];
+  return once('i:'+k, async()=>{
+    try{ const r=await API.read(pIcon(k)); const b=new Uint8Array(await r.arrayBuffer()); DB.icons[k]=b; return b; }
+    catch(e){ return null; }
+  });
+}
+
+/* ==================================================================
+   5. 列表重绘时保持滚动位置 —— 解决「点一条就滚回起点」
+   ================================================================== */
+const SCROLL = {};   // 列表被隐藏时 DOM scrollTop 会归零，需自己缓存
+function withScroll(id, fn, toBottom){
+  const prev = document.querySelector('#'+id+' .scroll');
+  const visible = prev && prev.offsetParent !== null;
+  const top = visible ? prev.scrollTop : (SCROLL[id]||0);
+  fn();
+  const now = document.querySelector('#'+id+' .scroll');
+  if(now){ now.scrollTop = toBottom ? now.scrollHeight : top; SCROLL[id]=now.scrollTop; }
+}
+
+/* ---- 移动端 master-detail 视图切换 ---- */
+const MQ = () => window.matchMedia && window.matchMedia('(max-width: 860px)').matches;
+function setView(id, v){
+  const n=document.getElementById(id);
+  if(n) n.dataset.view = v;
+}
+function getView(id){
+  const n=document.getElementById(id);
+  return n ? (n.dataset.view||'list') : 'list';
+}
+function gotoEditor(id){
+  if(!MQ()) return;
+  setView(id,'edit');
+  const n=document.getElementById(id);
+  if(n && n.scrollIntoView) setTimeout(()=>{ try{ n.scrollIntoView({block:'start'}); }catch(e){} }, 0);
+}
+/* 编辑区顶部的「← 返回列表」，仅移动端可见 */
+function backBar(id, title){
+  const b=el('button','btn backbtn','← 返回列表'+(title?(' · '+title):''));
+  b.onclick=()=>setView(id,'list');
+  return b;
+}
+
+/* ==================================================================
+   6. 改动追踪 / 写入
+   ================================================================== */
+function markDirty(k){ dirty.add(k); updateDirtyTip(); }
+function clearDirty(k){ dirty.delete(k); updateDirtyTip(); }
+function updateDirtyTip(){ $('#dirtyTip').textContent = dirty.size ? (`● ${dirty.size} 项改动待保存`) : ''; }
+
+function dirtyFiles(){
+  const out=[];
+  if(dirty.has('allstar') && DB.allstar) out.push({name:CONF.pathAllstar, data:jsBytes(DB.allstar)});
+  if(dirty.has('index'))   out.push({name:CONF.pathIndex,   data:jsBytes(DB.index)});
+  if(dirty.has('users'))   out.push({name:CONF.pathUsers,   data:jsBytes(DB.users)});
+  for(const k of dirty){
+    if(k.startsWith('user:')){ const id=k.slice(5); out.push({name:pUser(id), data:jsBytes(DB.userStars[id]||[])}); }
+    if(k.startsWith('star:')){ const i=k.slice(5);  if(DB.stars[i]) out.push({name:pStar(i), data:jsBytes(DB.stars[i])}); }
+    if(k.startsWith('icon:')){ const g=k.slice(5);  if(DB.icons[g]) out.push({name:pIcon(g), data:DB.icons[g]}); }
+    /* ★ 载荷小文件：只有改过的那几条才回写，ndef 不再被整个账户反复搬运 */
+    /* 载荷回写走 payloadToBytes（按字节），不能用 jsBytes（UTF-8 会改坏 ndef） */
+    if(k.startsWith('payload:')){ const o=DB.userPayload[k]; if(o) out.push({name:pUserStarByKey(k), data:payloadToBytes(o)}); }
+  }
+  return out;
+}
+async function writeFiles(files, label){
+  if(!files.length) return;
+  const done=[];
+  for(const f of files){ await API.write(f.name, f.data); done.push(f.name); }
+  log((label?label+'：':'')+'已写入 '+done.length+' 个文件 → '+done.join(', '));
+  if(API.mode==='dl') showOk('下载模式：已保存 '+done.length+' 个文件到浏览器下载目录，请手动覆盖到设备。');
+}
+async function flushAll(){
+  const fs=dirtyFiles();
+  if(!fs.length){ log('没有待保存的改动'); return; }
+  try{ await writeFiles(fs); dirty.clear(); updateDirtyTip(); }
+  catch(e){ showErr(e.message); }
+}
+
+/* ==================================================================
+   7. 字段控件（按类型渲染：布尔→复选框 / 数字→number / 其余→text）
+   ================================================================== */
+function fieldRow(f, item, onEdit){
+  const row=el('div','frow');
+  row.appendChild(el('div','flabel',f.k));
+  row.appendChild(el('div','ftype',TYPE_TAG[f.t]||''));
+
+  if(f.t==='boolean'){
+    const cb=el('input','fcheck'); cb.type='checkbox'; cb.checked = (item[f.k]===true);
+    const txt=el('span','fval', String(item[f.k]));
+    cb.addEventListener('change',()=>{ item[f.k]=cb.checked; txt.textContent=String(cb.checked); onEdit(); });
+    row.appendChild(cb); row.appendChild(txt);
+  }else{
+    const inp=el('input','finput');
+    inp.type = f.t==='number' ? 'number' : 'text';
+    inp.value = (item[f.k]==null) ? '' : item[f.k];
+    inp.addEventListener('input',()=>{ item[f.k]=coerce(inp.value, f.t); onEdit(); });
+    row.appendChild(inp);
+    if(f.k==='star_id') inp.addEventListener('change', onEdit);  // star_id 变更 → 重载徽章数据
+  }
+  return row;
+}
+
+/* ==================================================================
+   8. 区域① 账户徽章管理器 (user_X.json)
+   ================================================================== */
+function renderUserTabs(){
+  const t=$('#userTabs'); t.innerHTML='';
+  const us=DB.users.users||[];
+  if(!us.length){ t.appendChild(el('span','muted','（暂无账户，请先在区域③新增）')); return; }
+  if(UI.userId==null || !us.some(u=>u.id===UI.userId)) UI.userId=us[0].id;
+  us.forEach(u=>{
+    const b=el('button','tab'+(u.id===UI.userId?' active':''), u.name||('user_'+u.id));
+    b.onclick=()=>{ UI.userId=u.id; UI.userStarIdx=0; UI.pendingBin=null; renderUserTabs(); renderUserStarMgr(); };
+    t.appendChild(b);
+  });
+}
+
+/* 索引元素：只有三件套；ndef 落在 user_{uid}/{star_id}.json */
+function newUserStar(){ return {star_id:null, favorite:false, type:0}; }
+
+/* 读取（并缓存）单条载荷 user_{uid}/{star}.json；文件不存在 → 空载荷，保存时才建 */
+async function getPayload(uid, star){
+  const k=payloadKey(uid,star);
+  if(DB.userPayload[k]) return DB.userPayload[k];
+  return once('p:'+k, async()=>{
+    let o=null;
+    try{
+      /* ★ 载荷必须按「字节」读：其 ndef 含控制字符（记录头 D1 01 …），
+         走 r.json()（UTF-8 + JSON.parse）会直接抛 Invalid control character，
+         被下面的 catch 吞成 {ndef:''} → 界面显示空 → 一保存就把载荷清空。
+         改走 arrayBuffer() + Latin-1 解析，与设备端字节 1:1。 */
+      const r=await API.read(pUserStar(uid,star));
+      o=payloadParseBytes(new Uint8Array(await r.arrayBuffer()));
+    }catch(e){ o=null; }
+    if(!o || typeof o!=='object' || Array.isArray(o)) o={ndef:''};
+    if(o.ndef==null)    o.ndef='';
+    delete o.counter;   /* 旧格式残留键：加载时剥离，回写即成新格式 */
+    DB.userPayload[k]=o;
+    return o;
+  });
+}
+
+/* 当前账户所有「已改动」的载荷文件，供保存 / 保存全部 使用 */
+function payloadFilesOf(uid){
+  const out=[];
+  for(const k of dirty){
+    if(k.startsWith(`payload:${uid}:`)){
+      const o=DB.userPayload[k];
+      if(o) out.push({name:pUserStarByKey(k), data:jsBytes(o)});
+    }
+  }
+  return out;
+}
+
+function renderUserStarMgr(toBottom){ withScroll('userStarMgr', ()=>drawUserStarMgr(), toBottom); }
+
+function drawUserStarMgr(){
+  const wrap=$('#userStarMgr'); wrap.innerHTML='';
+  const uid=UI.userId;
+  if(uid==null){ wrap.appendChild(el('div','muted','请先在区域③新增账户')); return; }
+  const arr = DB.userStars[uid] || (DB.userStars[uid]=[]);
+  if(UI.userStarIdx>=arr.length) UI.userStarIdx=arr.length-1;
+  if(UI.userStarIdx<0) UI.userStarIdx=0;
+
+  /* --- 左：列表 --- */
+  const list=el('div','list');
+  const lh=el('div','listhead');
+  lh.appendChild(el('span',null,`user_${uid}.json (${arr.length})`));
+  const bAdd=el('button','mini','+ 新增');
+  bAdd.onclick=()=>{ arr.push(newUserStar()); UI.userStarIdx=arr.length-1; markDirty('user:'+uid); renderUserStarMgr(true); gotoEditor('userStarMgr'); };
+  lh.appendChild(bAdd); list.appendChild(lh);
+  const sc=el('div','scroll');
+  arr.forEach((it,i)=>{
+    const st=DB.stars[String(it.star_id)];
+    const row=el('div','item'+(i===UI.userStarIdx?' active':''), `#${i} ★${it.star_id??'-'} ${st?(st.name||''):''}`);
+    row.onclick=()=>{ UI.userStarIdx=i; renderUserStarMgr(); gotoEditor('userStarMgr'); };
+    sc.appendChild(row);
+  });
+  list.appendChild(sc); wrap.appendChild(list);
+
+  /* --- 右：编辑 --- */
+  const ed=el('div','editor');
+  const item=arr[UI.userStarIdx];
+  if(!item){
+    ed.appendChild(backBar('userStarMgr',`user_${uid}.json`));
+    ed.appendChild(el('div','muted','该账户暂无徽章，点「+ 新增」'));
+    wrap.appendChild(ed); return;
+  }
+
+  ed.appendChild(backBar('userStarMgr', `★${item.star_id??'-'} [${UI.userStarIdx}]`));
+  const cv=el('canvas','icon'); ed.appendChild(cv);
+  const cap=el('div','cap','徽章图标预览 · RGB565 小端');
+  ed.appendChild(cap);
+
+  const bd=el('div','panel'); bd.appendChild(el('h4',null,'徽章数据（只读 · 来源 stars/{star_id}.json）'));
+  const bdBody=el('div','panel-body','加载中…'); bd.appendChild(bdBody); ed.appendChild(bd);
+
+  const sd=el('div','panel'); sd.appendChild(el('h4',null,`选中数据（可编辑 · user_${uid}.json [${UI.userStarIdx}]）`));
+  const sBody=el('div','panel-body'); sd.appendChild(sBody); ed.appendChild(sd);
+  let reloadTimer=null;
+  SCHEMA.userStar.forEach(f=>{
+    sBody.appendChild(fieldRow(f, item, ()=>{
+      markDirty('user:'+uid);
+      if(f.k==='star_id'){                       // star_id 变化 → 延迟重载只读面板 + 载荷面板
+        clearTimeout(reloadTimer);
+        reloadTimer=setTimeout(()=>renderUserStarMgr(), 400);
+      }
+    }));
+  });
+
+  /* ★ 载荷面板：内容来自 user_{uid}/{star_id}.json，选中一条才去读（懒加载） */
+  const pd=el('div','panel'); pd.appendChild(el('h4',null,`载荷数据（可编辑 · user_${uid}/{star_id}.json）`));
+  const pBody=el('div','panel-body','加载中…'); pd.appendChild(pBody); ed.appendChild(pd);
+
+  const bar=el('div','btnbar');
+  const bS=el('button','btn primary','保存');
+  bS.onclick=async()=>{
+    try{
+      await writeFiles([{name:pUser(uid), data:jsBytes(arr)}, ...payloadFilesOf(uid)]);
+      clearDirty('user:'+uid);
+      for(const k of [...dirty]) if(k.startsWith(`payload:${uid}:`)) clearDirty(k);
+    }catch(e){ showErr(e.message); }
+  };
+  const bA=el('button','btn','新增');
+  bA.onclick=()=>{ arr.push(newUserStar()); UI.userStarIdx=arr.length-1; markDirty('user:'+uid); renderUserStarMgr(true); gotoEditor('userStarMgr'); };
+  const bD=el('button','btn danger','删除');
+  bD.onclick=async()=>{
+    if(!confirm('删除该元素？\n（索引条目 + 载荷文件 user_'+uid+'/'+(item.star_id??'?')+'.json）')) return;
+    const sid=item.star_id;                      // 先存下来，splice 后 item 就没了
+    arr.splice(UI.userStarIdx,1); UI.userStarIdx=Math.max(0,UI.userStarIdx-1);
+    try{
+      await writeFiles([{name:pUser(uid), data:jsBytes(arr)}]);
+      if(sid!=null && sid!==''){
+        /* 同步删载荷；索引里可能有但文件还没建过（从未保存载荷），404 属正常，忽略 */
+        try{ await API.remove(pUserStar(uid,sid)); }catch(e){}
+      }
+      delete DB.userPayload[payloadKey(uid,sid)];
+      clearDirty('user:'+uid); clearDirty(payloadKey(uid,sid));
+    }catch(e){ showErr(e.message); }
+    renderUserStarMgr();
+  };
+  bar.append(bS,bA,bD); ed.appendChild(bar);
+  wrap.appendChild(ed);
+
+  /* --- 异步加载载荷（404 → 视为空载荷，保存时才建文件） --- */
+  (async()=>{
+    const sid=item.star_id;
+    if(sid==null || sid===''){
+      pBody.textContent='未指定 star_id，保存索引后才会生成载荷文件。';
+      return;
+    }
+    const pl=await getPayload(uid, sid);
+    if(item !== (DB.userStars[uid]||[])[UI.userStarIdx]) return;   // 已被切换，丢弃
+    pBody.innerHTML='';
+
+    /* ★「粘 URL → 生成 NDEF」生成器
+       量大时不必一张张拿手机去写卡：把 NFC Tools 里复制的那条 URL 粘进来点一下即可，
+       顺带当场校验 s token（抄错立刻报出来）。也接受整段十六进制。 */
+    {
+      const box=el('div','frow');
+      box.appendChild(el('div','flabel','URL / HEX'));
+      const col=el('div'); col.style.cssText='flex:1;min-width:0';
+
+      const ta=el('textarea'); ta.rows=3;
+      ta.style.cssText='width:100%;box-sizing:border-box;font:12px/1.4 ui-monospace,Consolas,monospace';
+      ta.placeholder='https://sky.thatg.co/?s=…&c=…    ← NFC Tools 里复制整条 URL\n或整段十六进制（D1 01 …）';
+      const btn=el('button','btn','生成 NDEF 并应用');
+      const st=el('div','cap','');
+
+      const showCur=()=>{
+        const n=(typeof pl.ndef==='string')?pl.ndef.length:0;
+        let h='';
+        if(n) for(let i=0;i<Math.min(8,n);i++) h+=(i?' ':'')+('0'+(pl.ndef.charCodeAt(i)&0xFF).toString(16)).slice(-2);
+        st.textContent='当前 ndef：'+n+' 字节'+(h?(' · 头 '+h):'');
+      };
+      btn.addEventListener('click',()=>{
+        const r=ndefFromInput(ta.value);
+        if(r.err){ st.textContent='✗ '+r.err; return; }
+        pl.ndef=bytesToLatin1(r.bytes);
+        markDirty(payloadKey(uid, sid));
+        const nd=pBody.querySelector('input.finput'); if(nd) nd.value=pl.ndef;
+        st.textContent='✓ 已生成 '+r.bytes.length+' 字节'+(r.tok?(' · '+r.tok):'');
+      });
+      col.appendChild(ta); col.appendChild(btn); col.appendChild(st);
+      box.appendChild(col);
+      pBody.appendChild(box);
+      showCur();
+    }
+
+    SCHEMA.userPayload.forEach(f=>{
+      pBody.appendChild(fieldRow(f, pl, ()=>{
+        markDirty(payloadKey(uid, sid));
+        if(f.k==='ndef'){                      // 手改 ndef 后刷新长度提示
+          const tip=pBody.querySelector('.frow .cap:last-of-type');
+          if(tip) tip.textContent='当前 ndef：'+((pl.ndef||'').length)+' 字节（手改）';
+        }
+      }));
+    });
+    const hint=el('div','cap','文件：'+pUserStar(uid,sid)+' · 仅含 ndef（NDEF 裸记录）——'
+      +' 推荐用上面的 URL 生成；也可直接粘贴整段十六进制。star_id 由文件名承载');
+    pBody.appendChild(hint);
+  })();
+
+  /* --- 异步加载 stars + icon（用闭包变量比对，防止错位写入） --- */
+  (async()=>{
+    const st=await getStar(item.star_id);
+    if(item !== (DB.userStars[uid]||[])[UI.userStarIdx]) return;   // 已被切换，丢弃
+    if(st){
+      bdBody.innerHTML='';
+      Object.entries(st).forEach(([k,v])=>{
+        const r=el('div','kv'); r.appendChild(el('span','k',k)); r.appendChild(el('span','v',String(v))); bdBody.appendChild(r);
+      });
+      const ibuf = await getIcon(st.img);
+      drawIcon(cv, ibuf);
+      cap.textContent = iconCap(ibuf ? ibuf.length : 0, ' · img='+(st.img??'-'));
+    }else{
+      bdBody.textContent = (item.star_id==null) ? '未指定 star_id' : (`未找到 ${pStar(item.star_id)}`);
+      drawIcon(cv, null);
+      cap.textContent = iconCap(0);
+    }
+  })();
+}
+
+/* ==================================================================
+   9. 区域② 徽章管理器 (allstar.json)
+   ================================================================== */
+function renderAllstarMgr(toBottom){ withScroll('allstarMgr', ()=>drawAllstarMgr(), toBottom); }
+
+/* 顶部状态提示 */
+function updateAllstarUI(){
+  const tip=$('#allstarTip'), hint=$('#allstarHint'), btn=$('#btnAllstar');
+  if(allstarOn()){
+    tip.className='tip on';
+    tip.textContent=`已加载 ${DB.allstar.length} 条`;
+    btn.textContent='⚡ 重新加载徽章大全';
+    hint.innerHTML='';
+  }else{
+    tip.className='tip off';
+    tip.textContent='未加载 · 只读';
+    btn.textContent='⚡ 加载徽章大全';
+    hint.innerHTML='<div class="hintbox">徽章大全未加载，本区域为<b>只读</b>：列表取自 <b>index.json</b>，新增 / 保存 / 删除 / 改图 均已禁用。'
+      + '常用操作请用上方<b>账户徽章管理器</b>（不依赖 allstar.json）。'
+      + '确需管理徽章本体时点上方「⚡ 加载徽章大全」解锁。</div>';
+  }
+}
+
+/* 按需加载徽章大全 */
+async function loadAllstar(){
+  try{
+    clearMsg(); log('正在加载 allstar.json（体积较大，请稍候）…');
+    const a=await readJSON(CONF.pathAllstar);
+    if(!Array.isArray(a)) throw new Error('allstar.json 内容不是数组');
+    DB.allstar=a;
+    UI.allstarIdx=0; UI.pendingBin=null;
+    updateAllstarUI(); renderAllstarMgr();
+    log(`徽章大全已加载：${DB.allstar.length} 条，保存时将同步写入 allstar.json`);
+    showOk(`已加载 allstar.json（${DB.allstar.length} 条）\n现在「保存」会同步写入 4 处：allstar.json + stars/{idx}.json + index.json + 图标`);
+  }catch(e){
+    showErr('加载 allstar.json 失败：'+e.message);
+    log('加载失败');
+  }
+}
+
+/* 当前选中项的可编辑对象（仅已加载时有效） */
+function curBadge(){
+  if(!DB.allstar) return null;
+  return DB.allstar[UI.allstarIdx] || null;
+}
+/* 未加载 = 只读，禁止一切增删改 */
+const mkBtn = (txt, cls, fn, dis) => {
+  const b=el('button','btn'+(cls?' '+cls:''), txt);
+  if(!dis) b.onclick=fn; else b.disabled=true;
+  return b;
+};
+
+function drawAllstarMgr(){
+  const wrap=$('#allstarMgr'); wrap.innerHTML='';
+  const arr=badgeList();
+  if(UI.allstarIdx>=arr.length) UI.allstarIdx=arr.length-1;
+  if(UI.allstarIdx<0) UI.allstarIdx=0;
+
+  const locked = !allstarOn();          // 未加载 → 只读，禁用一切增删改
+
+  /* --- 左：列表 --- */
+  const list=el('div','list');
+  const lh=el('div','listhead');
+  lh.appendChild(el('span',null, (DB.allstar?'allstar.json':'index.json')+` (${arr.length})`));
+  const bAdd=el('button','mini','+ 新增');
+  if(locked){ bAdd.disabled=true; bAdd.title='需先加载徽章大全'; } else bAdd.onclick=addAllstar;
+  lh.appendChild(bAdd); list.appendChild(lh);
+  const sc=el('div','scroll');
+  if(!arr.length) sc.appendChild(el('div','muted','暂无条目'));
+  arr.forEach((it,i)=>{
+    const cache=DB.stars[String(it.idx)];
+    const row=el('div','item'+(i===UI.allstarIdx?' active':''), `#${i} ★${it.idx??'-'} ${it.name||cache?.name||''}`);
+    row.onclick=()=>{ UI.allstarIdx=i; UI.pendingBin=null; renderAllstarMgr(); gotoEditor('allstarMgr'); };
+    sc.appendChild(row);
+  });
+  list.appendChild(sc); wrap.appendChild(list);
+
+  /* --- 右 --- */
+  const ed=el('div','editor');
+  const row=arr[UI.allstarIdx];
+  if(!row){
+    ed.appendChild(backBar('allstarMgr'));
+    ed.appendChild(el('div','muted', locked?'暂无条目（需先加载徽章大全才能新增）':'暂无徽章，点「+ 新增」'));
+    wrap.appendChild(ed); return;
+  }
+
+  /* 只读态：不发起任何 stars/ icons/ 请求，仅提示 + 禁用按钮组 */
+  if(locked){
+    ed.appendChild(backBar('allstarMgr', '★'+(row.idx??'-')));
+    const box=el('div','panel');
+    box.appendChild(el('h4',null,'徽章管理器 · 只读'));
+    const body=el('div','panel-body');
+    body.appendChild(el('div','muted','徽章大全未加载，无法查看 / 新增 / 编辑 / 删除徽章。'));
+    body.appendChild(el('div','muted','当前选中：idx = '+(row.idx??'-')));
+    body.appendChild(el('div','muted','常用操作请使用上方「① 账户徽章管理器」，它不依赖 allstar.json。'));
+    box.appendChild(body); ed.appendChild(box);
+    const bar=el('div','btnbar');
+    bar.append(mkBtn('保存','primary',null,true), mkBtn('新增',null,null,true), mkBtn('删除','danger',null,true));
+    ed.appendChild(bar);
+    wrap.appendChild(ed);
+    return;
+  }
+
+  ed.appendChild(backBar('allstarMgr', `★${row.idx??'-'} ${row.name||''}`));
+  const cv=el('canvas','icon'); ed.appendChild(cv);
+  const cap=el('div','cap','徽章图标预览 · RGB565 小端'); ed.appendChild(cap);
+
+  const item=curBadge();
+  if(!item){ ed.appendChild(el('div','muted','数据异常')); wrap.appendChild(ed); return; }
+
+  const bd=el('div','panel'); bd.appendChild(el('h4',null,'徽章数据（只读 · 同 stars/{idx}.json）'));
+  const bdBody=el('div','panel-body'); bd.appendChild(bdBody); ed.appendChild(bd);
+  const drawBD=()=>{
+    bdBody.innerHTML='';
+    SCHEMA.allstar.forEach(f=>{
+      const r=el('div','kv');
+      r.appendChild(el('span','k',f.k));
+      r.appendChild(el('span','v', (item[f.k]==null?'':String(item[f.k]))));
+      bdBody.appendChild(r);
+    });
+  };
+  drawBD();
+
+  const sd=el('div','panel'); sd.appendChild(el('h4',null,`选中数据（可编辑 · allstar.json [${UI.allstarIdx}]）`));
+  const sBody=el('div','panel-body'); sd.appendChild(sBody); ed.appendChild(sd);
+  SCHEMA.allstar.forEach(f=>{
+    sBody.appendChild(fieldRow(f, item, ()=>{ markDirty('allstar'); drawBD(); }));
+  });
+
+  const up=el('div','panel'); up.appendChild(el('h4',null,'替换图标（可选 · RGB565 .bin 方阵：52×52=5408 或 120×120=28800 字节）'));
+  const ub=el('div','panel-body'); const fi=el('input','finput'); fi.type='file'; fi.accept='.bin'; ub.appendChild(fi); up.appendChild(ub); ed.appendChild(up);
+  const setCap=(buf)=>{ cap.textContent = iconCap(buf ? buf.length : 0, ' · img='+(item.img??'-')); };
+  fi.addEventListener('change', async ()=>{
+    const f=fi.files[0]; if(!f) return;
+    if(!iconSide(f.size)) showErr(`文件大小 ${f.size} 不是有效 RGB565 方阵（应为 52×52=5408 或 120×120=28800 字节），仍按原样载入`);
+    UI.pendingBin=new Uint8Array(await f.arrayBuffer());
+    DB.icons[String(item.img)]=UI.pendingBin;
+    drawIcon(cv, UI.pendingBin); setCap(UI.pendingBin);
+    log('图片已载入，点「保存」后写入 '+pIcon(item.img));
+  });
+
+  const bar=el('div','btnbar');
+  bar.append(mkBtn('保存（同步 4 处）','primary',saveAllstar,false),
+             mkBtn('新增',null,addAllstar,false),
+             mkBtn('删除','danger',delAllstar,false));
+  ed.appendChild(bar);
+  wrap.appendChild(ed);
+
+  (async()=>{
+    const mine=item;
+    const buf=UI.pendingBin || await getIcon(mine.img);
+    if(curBadge()===mine){ drawIcon(cv, buf); setCap(buf); }
+  })();
+}
+
+function newAllstar(idx){ return {idx, img:'', name:'', cd:'', info:'', type:0}; }
+
+function addAllstar(){
+  if(!allstarOn()){ showErr('徽章大全未加载，无法新增。请先点上方「⚡ 加载徽章大全」'); return; }
+  const s=prompt('新徽章 idx（数字，用户指定）'); if(s==null) return;
+  const idx=Number(s);
+  if(!Number.isFinite(idx)){ alert('idx 必须是数字'); return; }
+  if(badgeList().some(x=>String(x.idx)===String(idx))){ alert('idx 已存在'); return; }
+  const it=newAllstar(idx);
+  DB.allstar.push(it);
+  DB.stars[String(idx)]=it;
+  DB.index.push({idx, img:'', type:0});
+  UI.allstarIdx=DB.allstar.length-1; UI.pendingBin=null;
+  markDirty('allstar'); markDirty('index');
+  log(`已新增 idx=${idx}，请填写字段 → 上传 .bin → 保存`);
+  renderAllstarMgr(true);
+  gotoEditor('allstarMgr');
+}
+
+async function saveAllstar(){
+  if(!allstarOn()){ showErr('徽章大全未加载，无法保存。请先点上方「⚡ 加载徽章大全」'); return; }
+  const item=curBadge();
+  if(!item){ log('无元素'); return; }
+  if(item.idx==null || item.idx===''){ alert('请先填写 idx'); return; }
+  clearMsg();
+  const files=[];
+  files.push({name:CONF.pathAllstar, data:jsBytes(DB.allstar)});          // ① 本体
+  files.push({name:pStar(item.idx),   data:jsBytes(item)});                // ② stars/{idx}.json
+  DB.stars[String(item.idx)]={...item};
+  if(UI.pendingBin) files.push({name:pIcon(item.img), data:UI.pendingBin}); // ③ icons/*.bin
+  const i=DB.index.findIndex(x=>String(x.idx)===String(item.idx));          // ④ index.json
+  if(i<0) DB.index.push({idx:item.idx, img:item.img, type:item.type});
+  else { DB.index[i].img=item.img; DB.index[i].type=item.type; }
+  files.push({name:CONF.pathIndex, data:jsBytes(DB.index)});
+
+  try{
+    await writeFiles(files);
+    UI.pendingBin=null;
+    dirty.delete('allstar'); dirty.delete('index'); updateDirtyTip();
+    showOk('已写入：\n  '+files.map(f=>'· '+f.name).join('\n  '));
+  }catch(e){ showErr(e.message); }
+}
+
+async function delAllstar(){
+  if(!allstarOn()){ showErr('徽章大全未加载，无法删除。请先点上方「⚡ 加载徽章大全」'); return; }
+  const item=curBadge();
+  if(!item) return;
+  if(!confirm(`删除徽章 idx=${item.idx} ?\n（allstar 本体 + index + stars/ + icons/）`)) return;
+  clearMsg();
+  const idx=item.idx, img=item.img;
+  DB.allstar.splice(UI.allstarIdx,1);
+  DB.index = DB.index.filter(x=>String(x.idx)!==String(idx));
+  delete DB.stars[String(idx)];
+  if(DB.icons[String(img)]) delete DB.icons[String(img)];
+  UI.allstarIdx=Math.max(0,UI.allstarIdx-1); UI.pendingBin=null;
+
+  try{
+    await writeFiles([{name:CONF.pathAllstar, data:jsBytes(DB.allstar)},
+                      {name:CONF.pathIndex,   data:jsBytes(DB.index)}]);
+    const gone=[];
+    for(const p of [pStar(idx), pIcon(img)]){
+      if(await API.remove(p)) gone.push(p);
+    }
+    dirty.delete('allstar'); dirty.delete('index'); updateDirtyTip();
+    let msg='';
+    if(gone.length) msg='已删除：\n  '+gone.map(p=>'· '+p).join('\n  ');
+    else if(API.mode==='dl') msg='下载模式无法删除文件，请手动删除：\n  · '+pStar(idx)+'\n  · '+pIcon(img);
+    if(msg) showOk(msg);
+  }catch(e){ showErr(e.message); }
+  renderAllstarMgr();
+}
+
+/* ==================================================================
+   10. 区域③ 账户管理 (users.json → users[])
+   ================================================================== */
+function renderUserMgr(){
+  const c=$('#userMgr'); c.innerHTML='';
+  if(!DB.users.users) DB.users.users=[];
+  const head=el('div','listhead');
+  head.appendChild(el('span',null,`users.json · users[] (${DB.users.users.length}) · next_id=${DB.users.next_id??'-'} · use=${DB.users.use??'-'}`));
+  const bAdd=el('button','btn','+ 新增账户'); bAdd.onclick=addUser; head.appendChild(bAdd);
+  c.appendChild(head);
+
+  const grid=el('div','grid');
+  DB.users.users.forEach(u=>{
+    const card=el('div','card');
+    const r1=el('div','frow'); r1.appendChild(el('div','flabel','id'));
+    const i1=el('input','finput'); i1.type='number'; i1.value=u.id??''; i1.disabled=true; r1.appendChild(i1); card.appendChild(r1);
+    const r2=el('div','frow'); r2.appendChild(el('div','flabel','name'));
+    const i2=el('input','finput'); i2.value=u.name??'';
+    i2.addEventListener('input',()=>{ u.name=i2.value; markDirty('users'); });
+    r2.appendChild(i2); card.appendChild(r2);
+
+    const bar=el('div','btnbar');
+    const bs=el('button','btn','保存');
+    bs.onclick=async()=>{
+      try{
+        await writeFiles([{name:CONF.pathUsers, data:jsBytes(DB.users)},
+                          {name:pUser(u.id),    data:jsBytes(DB.userStars[u.id]||[])}]);
+        clearDirty('users'); clearDirty('user:'+u.id);
+      }catch(e){ showErr(e.message); }
+    };
+    const bd=el('button','btn danger','删除');
+    bd.onclick=()=>delUser(u.id);
+    bar.append(bs,bd); card.appendChild(bar);
+    grid.appendChild(card);
+  });
+  c.appendChild(grid);
+}
+
+function addUser(){
+  const name=prompt('账户名称'); if(!name) return;
+  const id = DB.users.next_id ?? (Math.max(0,...DB.users.users.map(u=>u.id||0))+1);
+  DB.users.next_id = id+1;
+  DB.users.users.push({id, name});
+  DB.userStars[id]=[];
+  markDirty('users');
+  renderUserMgr(); renderUserTabs(); renderUserStarMgr();
+  log(`已新增账户 id=${id}，保存后写入 ${pUser(id)}`);
+}
+
+async function delUser(id){
+  if(!confirm(`删除账户 id=${id} 及其 ${pUser(id)} ?`)) return;
+  clearMsg();
+  DB.users.users = DB.users.users.filter(u=>u.id!==id);
+  delete DB.userStars[id];
+  if(UI.userId===id){ UI.userId=(DB.users.users[0]||{}).id ?? null; UI.userStarIdx=0; }
+  try{
+    await writeFiles([{name:CONF.pathUsers, data:jsBytes(DB.users)}]);
+    const ok = await API.remove(pUser(id));
+    dirty.delete('users'); updateDirtyTip();
+    if(!ok && API.mode==='dl') showOk('下载模式无法删除文件，请手动删除：\n  · '+pUser(id));
+    else if(ok) showOk('已删除 '+pUser(id));
+  }catch(e){ showErr(e.message); }
+  renderUserMgr(); renderUserTabs(); renderUserStarMgr();
+}
+
+/* ==================================================================
+   11. 数据装载
+   ================================================================== */
+function renderAll(){
+  setView('userStarMgr','list'); setView('allstarMgr','list');
+  renderUserTabs(); renderUserStarMgr(); renderAllstarMgr(); renderUserMgr();
+}
+/* 屏幕由窄变宽时清掉视图状态，避免在桌面端残留隐藏规则 */
+if(window.matchMedia){
+  const mq=window.matchMedia('(max-width: 860px)');
+  const onChange=()=>{ if(!mq.matches){ setView('userStarMgr','list'); setView('allstarMgr','list'); } };
+  if(mq.addEventListener) mq.addEventListener('change',onChange);
+  else if(mq.addListener) mq.addListener(onChange);
+}
+
+async function bootFetch(){
+  try{
+    clearMsg(); log('加载中…');
+    DB.users   = await readJSON(CONF.pathUsers);
+    if(!DB.users.users) DB.users.users=[];
+    DB.index   = await readJSON(CONF.pathIndex);
+    DB.allstar = null;                 // ← 体积大，默认不加载，需要时点「⚡ 加载徽章大全」
+    DB.userStars={}; DB.stars={}; DB.icons={}; DB.userPayload={};
+    for(const u of DB.users.users){
+      try{ DB.userStars[u.id]=await readJSON(pUser(u.id)); }
+      catch(e){ DB.userStars[u.id]=[]; console.warn('缺少 '+pUser(u.id)); }
+    }
+    UI.userId = DB.users.users.length ? DB.users.users[0].id : null;
+    UI.userStarIdx=0; UI.allstarIdx=0; UI.pendingBin=null;
+    dirty.clear(); updateDirtyTip();
+    updateAllstarUI();
+    renderAll();
+    log(`加载完成：${DB.users.users.length} 账户 / ${DB.index.length} 条索引 / 徽章大全未加载`);
+  }catch(e){
+    showErr('加载失败：'+e.message+'\n\n请确认：\n① 本页通过 HTTP 打开（勿双击 file:// 打开本地文件）；\n② ESP32 Web 服务已启动，且 GET /api/fs?path=... 正常；\n③ 电脑与设备在同一网络。\n确认后点「↻ 重新加载」重试。');
+    log('加载失败');
+  }
+}
+
+/* 启动：自动从设备加载，无需手动点按钮 */
+clearMsg();
+updateAllstarUI();
+renderAll();
+log('正在从设备加载…');
+bootFetch();
+</script>
+</body>
+</html>

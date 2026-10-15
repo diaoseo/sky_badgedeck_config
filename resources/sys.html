@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f2f4f7">
+<meta name="format-detection" content="telephone=no">
+<title>BadgeDeck 系统</title>
+<style>
+/* ---------- 基础（移动端优先） ---------- */
+*{box-sizing:border-box;-webkit-tap-highlight-color:rgba(0,0,0,0);touch-action:manipulation}
+html{-webkit-text-size-adjust:100%}          /* 防 iOS 横屏字号自动放大 */
+body{font-family:-apple-system,system-ui,"Segoe UI",sans-serif;margin:0;background:#f2f4f7;
+     color:#1c1c1e;font-size:16px;line-height:1.55;max-width:760px;margin:0 auto;
+     /* 16px 字号：iOS 聚焦输入框时不会自动缩放页面 */
+     padding:12px 12px calc(20px + env(safe-area-inset-bottom));}
+@supports (padding-left:env(safe-area-inset-left)){
+  body{padding-left:calc(12px + env(safe-area-inset-left));
+       padding-right:calc(12px + env(safe-area-inset-right))}
+}
+h1{font-size:20px;margin:0 0 2px}
+.sub{font-size:13px;color:#6b6b70;margin-bottom:12px;word-break:break-all}
+/* 标题吸顶：滚到下面也能一键刷新 */
+header{position:sticky;top:0;z-index:10;background:#f2f4f7;padding:10px 0 8px;
+       border-bottom:1px solid #e6e9ee;margin-bottom:12px}
+.card{background:#fff;border:1px solid #d8dbe0;border-radius:12px;padding:14px;margin-bottom:12px}
+.card h2{font-size:16px;margin:0 0 10px}
+.muted{font-size:13px;color:#6b6b70}
+code{background:#f0f2f5;padding:1px 5px;border-radius:4px;font-size:12px;word-break:break-all}
+
+/* ---------- 控件：触摸目标 ≥44px ---------- */
+button{border:0;border-radius:10px;padding:0 16px;min-height:44px;
+       background:#4a90d9;color:#fff;cursor:pointer;font-size:15px;font-family:inherit;
+       -webkit-user-select:none;user-select:none}
+button.ghost{background:#eee;color:#333}
+button.danger{background:#d9534f}
+button:disabled{opacity:.5;cursor:default}
+button:active{opacity:.75;transform:scale(.98)}
+input[type=checkbox]{width:20px;height:20px;margin:0 5px 0 0;vertical-align:-4px}
+label.muted{display:inline-flex;align-items:center;min-height:44px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+
+/* ---------- 信息表 ---------- */
+.kv{display:grid;grid-template-columns:120px 1fr;gap:6px 10px;font-size:15px}
+.kv .k{color:#6b6b70;font-size:13px}
+.kv .v{word-break:break-all}
+hr{border:0;border-top:1px solid #e6e9ee;margin:11px 0}
+/* 窄屏：两列挤不下 → 键名变成小标签独占一行 */
+@media (max-width:520px){
+  .kv{grid-template-columns:1fr;gap:0}
+  .kv .k{margin-top:9px;font-size:12px}
+  .kv .v{margin-bottom:1px}
+  .kv .k + .v{margin-top:1px}
+}
+
+/* ---------- 入口 ---------- */
+.links{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+a.btn{display:flex;flex-direction:column;justify-content:center;min-height:58px;padding:12px;
+      border:1px solid #c3cad6;background:#fff;border-radius:12px;font-size:15px;
+      color:#1c1c1e;text-decoration:none;-webkit-user-select:none;user-select:none}
+a.btn:active{background:#eef3ff;border-color:#4a90d9}
+a.btn b{display:block;font-weight:600}
+a.btn span{display:block;font-size:11px;color:#8a8a8f;margin-top:2px;font-family:ui-monospace,Menlo,monospace}
+
+/* ---------- 滑块（手指好按） ---------- */
+input[type=range]{flex:1;min-width:150px;width:100%;height:40px;margin:0;
+                  -webkit-appearance:none;appearance:none;background:transparent}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:#d8dbe0}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;margin-top:-11px;
+      border-radius:50%;background:#4a90d9;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:#d8dbe0}
+input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;background:#4a90d9;
+      border:2px solid #fff}
+
+/* ---------- 提示行 ---------- */
+#msg{font-size:14px;color:#076;min-height:22px}
+#msg.err{color:#c33}
+</style>
+</head>
+<body>
+<header>
+  <div class="row" style="justify-content:space-between;align-items:flex-start">
+    <div style="flex:1;min-width:0">
+      <h1>BadgeDeck 系统</h1>
+      <div class="sub" id="hdr" style="margin-bottom:0">加载中…</div>
+    </div>
+    <button class="ghost" id="refreshTop">刷新</button>
+  </div>
+</header>
+
+<!-- ============ 本机信息 ============ -->
+<div class="card">
+  <div class="row" style="justify-content:space-between">
+    <h2>本机信息</h2>
+    <div class="row">
+      <label class="muted"><input type="checkbox" id="auto"> 自动刷新</label>
+      <button class="ghost" id="refresh">刷新</button>
+    </div>
+  </div>
+  <div class="kv" id="info"><div class="k">状态</div><div class="v">加载中…</div></div>
+</div>
+
+<!-- ============ 设置 ============ -->
+<div class="card">
+  <h2>设置</h2>
+
+  <div class="row" style="margin-bottom:6px">
+    <label class="muted" style="width:70px">亮度</label>
+    <input type="range" id="bright" min="10" max="100" step="1">
+    <span id="brightVal" style="min-width:48px;text-align:right">--</span>
+  </div>
+  <div class="muted" style="margin-bottom:12px">松手后下发；会写入 NVS，重新上电保持。</div>
+
+  <hr>
+  <div class="row" style="margin-bottom:8px">
+    <label class="muted" style="width:70px">更新地址</label>
+    <input type="text" id="updUrl" placeholder="https://host/path/" style="flex:1;min-width:140px;height:40px;padding:0 10px;border:1px solid #c3cad6;border-radius:8px;font-size:14px">
+    <button id="updUrlBtn">保存</button>
+  </div>
+  <div class="muted" style="margin-bottom:12px">设备点「更新」时去该 HTTPS 地址拉取 manifest 与差异资源（末尾的 / 自动补；证书须由固件内嵌的公共根 CA 签发——当前内置 Let's Encrypt ISRG X1/X2，使用其他 CA 需改 resync.cpp 的 ROOT_CA_PEM 重编）。</div>
+
+  <hr>
+  <div class="row" style="margin-bottom:12px">
+    <label class="muted" style="width:70px">WiFi</label>
+    <button id="wifiBtn">--</button>
+    <span class="muted">关闭后本页将无法访问，需从屏幕设置里重新打开。</span>
+  </div>
+
+  <hr>
+  <div class="row">
+    <label class="muted" style="width:70px">重启</label>
+    <button class="danger" id="rebootBtn">重启上位机</button>
+    <button id="nrfRstBtn">复位下位机</button>
+    <span class="muted">上位机 = ESP32-S3 软重启（约 10 秒）；下位机 = 拉 P0.21 复位脚 15 毫秒，
+      nRF52832 重启并回到默认卡。<b>不会</b>进 DFU。</span>
+  </div>
+
+  <div id="msg" style="margin-top:10px"></div>
+</div>
+
+<!-- ============ 入口 ============ -->
+<div class="card">
+  <h2>功能入口</h2>
+  <div class="links">
+    <a class="btn" href="/"><b>设备主页</b><span>/</span></a>
+    <a class="btn" href="/admin.html"><b>徽章管理</b><span>/admin.html</span></a>
+    <a class="btn" href="/door_admin.html"><b>门禁卡管理</b><span>/door_admin.html</span></a>
+    <a class="btn" href="/png2bin52.html"><b>图标转换工具</b><span>/png2bin52.html</span></a>
+    <a class="btn" href="/ota"><b>上位机 OTA</b><span>/ota</span></a>
+    <a class="btn" href="/dfu"><b>下位机烧录</b><span>/dfu</span></a>
+    <a class="btn" href="/log"><b>运行日志</b><span>/log</span></a>
+    <a class="btn" href="/api/sysinfo"><b>sysinfo (JSON)</b><span>/api/sysinfo</span></a>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+/* ---------- 工具 ---------- */
+function fmtBytes(n) {
+  if (!n && n !== 0) return '-';
+  if (n >= 1048576) return (n / 1048576).toFixed(2) + ' MB';
+  if (n >= 1024)    return (n / 1024).toFixed(1) + ' KB';
+  return n + ' B';
+}
+function fmtUptime(ms) {
+  let s = Math.floor(ms / 1000);
+  const d = Math.floor(s / 86400); s -= d * 86400;
+  const h = Math.floor(s / 3600);  s -= h * 3600;
+  const m = Math.floor(s / 60);    s -= m * 60;
+  const p = [];
+  if (d) p.push(d + '天');
+  if (d || h) p.push(h + '小时');
+  if (d || h || m) p.push(m + '分');
+  p.push(s + '秒');
+  return p.join(' ');
+}
+const RESET_REASON = ['未知','上电','外部复位','软件复位','Panic','INT 看门狗','TASK 看门狗',
+                      '看门狗','深度睡眠唤醒','欠压','SDIO'];
+function say(t, isErr) {
+  const e = $('msg');
+  e.textContent = t || '';
+  e.className = isErr ? 'err' : '';
+}
+
+/* ---------- 本机信息 ---------- */
+function kv(k, v) {
+  return '<div class="k">' + k + '</div><div class="v">' + v + '</div>';
+}
+function fmtTemp(v) {
+  return (v == null || typeof v !== 'number' || v < -100) ? '-' : v.toFixed(1);
+}
+async function loadInfo() {
+  let d;
+  try {
+    const r = await fetch('/api/sysinfo', { cache: 'no-store' });
+    d = await r.json();
+  } catch (e) {
+    $('info').innerHTML = kv('状态', '<span style="color:#c33">读取失败：' + e + '</span>');
+    return;
+  }
+
+  $('hdr').textContent = '固件 v' + d.fw + ' · ' + d.chip + ' · ' + (d.wifi ? ('已连接 ' + d.ssid) : 'WiFi 未连接');
+
+  let h = '';
+  h += kv('固件版本', 'v' + d.fw);
+  h += kv('芯片', d.chip + ' rev' + d.rev + ' @ ' + d.cpu + ' MHz');
+  h += kv('Flash / PSRAM', fmtBytes(d.flash) + ' / ' + (d.psram ? fmtBytes(d.psram) : '无'));
+  h += kv('剩余内存', fmtBytes(d.heap) + '（历史最低 ' + fmtBytes(d.heap_min) + '）'
+          + (d.psram_free ? '　PSRAM 剩余 ' + fmtBytes(d.psram_free) : ''));
+  h += kv('程序占用', fmtBytes(d.sketch) + ' / 可用 ' + fmtBytes(d.sketch_free));
+  h += kv('LittleFS', fmtBytes(d.fs_used) + ' / ' + fmtBytes(d.fs_total)
+          + '（' + (d.fs_total ? Math.round(d.fs_used * 100 / d.fs_total) : 0) + '%）');
+  h += kv('运行时长', fmtUptime(d.uptime));
+  h += kv('上次复位', (RESET_REASON[d.reset] || ('代码 ' + d.reset)));
+  h += '<hr style="grid-column:1/-1">';
+  h += kv('网络', d.wifi ? ('已连接　SSID ' + d.ssid) : '未连接');
+  h += kv('IP / mDNS', d.ip + '　·　<code>sky.local</code>');
+  h += kv('信号强度', d.wifi ? (d.rssi + ' dBm') : '-');
+  h += kv('MAC', d.mac);
+  h += kv('温度', '主机 ' + fmtTemp(d.esp_temp) + '°C　IMU ' + fmtTemp(d.imu_temp) + '°C');
+  h += '<hr style="grid-column:1/-1">';
+  h += kv('下位机', d.nrf_ready
+            ? ('已就绪　固件 v' + d.nrf_fw + (d.nrf_pins ? '　NFCT 引脚正常' : '　⚠ NFCT 引脚异常'))
+            : '<span style="color:#c33">未就绪</span>');
+  h += kv('门禁卡数量', d.cards + ' 张');
+  $('info').innerHTML = h;
+}
+
+/* ---------- 设置 ---------- */
+let s_bmin = 10, s_bmax = 100;
+async function loadSet() {
+  let d;
+  try {
+    const r = await fetch('/api/settings', { cache: 'no-store' });
+    d = await r.json();
+  } catch (e) { say('读取设置失败：' + e, true); return; }
+  s_bmin = d.bmin; s_bmax = d.bmax;
+  const b = $('bright');
+  b.min = d.bmin; b.max = d.bmax; b.value = d.bright;
+  $('brightVal').textContent = d.bright + '%';
+  $('wifiBtn').textContent = d.wifi ? 'WiFi：开（点击关闭）' : 'WiFi：关（点击开启）';
+  $('wifiBtn').className = d.wifi ? 'ghost' : '';
+}
+
+async function post(q) {
+  const r = await fetch('/api/settings?' + q, { method: 'POST' });
+  return r.json();
+}
+
+$('bright').addEventListener('change', async e => {
+  const v = e.target.value;
+  $('brightVal').textContent = v + '%';
+  try {
+    const r = await post('bright=' + encodeURIComponent(v));
+    say(r.ok ? ('亮度已设为 ' + v + '%') : ('失败：' + (r.msg || '')), !r.ok);
+  } catch (err) { say('请求失败：' + err, true); }
+});
+
+$('wifiBtn').addEventListener('click', async () => {
+  const cur = $('wifiBtn').textContent.indexOf('开') >= 0;
+  const to = cur ? 0 : 1;
+  const warn = to ? '确定要开启 WiFi？' : '确定要关闭 WiFi？\n关闭后本页将无法访问，需从屏幕设置里重新打开。';
+  if (!confirm(warn)) return;
+  try {
+    const r = await post('wifi=' + to);
+    if (r.ok) {
+      say(to ? '已请求开启 WiFi（设备正在连接）' : '已请求关闭 WiFi，本页即将失效', false);
+      setTimeout(() => { if (to) { loadInfo(); loadSet(); } }, 3000);
+    } else say('失败：' + (r.msg || ''), true);
+  } catch (err) { say('请求失败：' + err, true); }
+});
+
+$('rebootBtn').addEventListener('click', () => {
+  if (!confirm('确定软重启设备？\n重启后请等约 10 秒再刷新本页。')) return;
+  say('正在重启…');
+  fetch('/api/reboot?go=1', { cache: 'no-store' }).catch(() => {});
+  setTimeout(() => { location.reload(); }, 12000);
+});
+
+/* 手动复位下位机：拉 P0.21 复位脚 15ms。路由只置标志，主循环执行 */
+$('nrfRstBtn').addEventListener('click', () => {
+  if (!confirm('复位下位机（nRF52832）？\n拉低 P0.21 复位脚 15 毫秒，下位机重启并回到默认卡。\n不会进入 DFU。')) return;
+  say('正在复位下位机…');
+  fetch('/api/nrfreset?go=1', { cache: 'no-store' })
+    .then(r => r.json())
+    .then(r => {
+      if (!r.ok) { say('失败：' + (r.msg || ''), true); return; }
+      say('已请求复位下位机（主循环执行）');
+      setTimeout(loadInfo, 4000);        /* 下位机重启要几秒，稍后刷新状态 */
+    })
+    .catch(e => say('请求失败：' + e, true));
+});
+
+$('refresh').addEventListener('click', () => { loadInfo(); loadSet(); });
+$('refreshTop').addEventListener('click', () => { loadInfo(); loadSet(); });
+
+/* 更新地址（落设备 /update_url.txt） */
+async function loadUpdUrl() {
+  try {
+    const r = await fetch('/api/update_url', { cache: 'no-store' });
+    const d = await r.json();
+    $('updUrl').value = d.url || '';
+  } catch (e) { /* 忽略：页面首次打开可能服务未就绪 */ }
+}
+$('updUrlBtn').addEventListener('click', async () => {
+  const u = $('updUrl').value.trim();
+  if (!u) { say('请输入更新地址', true); return; }
+  try {
+    const r = await fetch('/api/update_url?url=' + encodeURIComponent(u), { method: 'POST' });
+    const d = await r.json();
+    say(d.ok ? ('更新地址已保存：' + u) : ('保存失败：' + (d.msg || '')), !d.ok);
+  } catch (e) { say('请求失败：' + e, true); }
+});
+
+let s_timer = null;
+$('auto').addEventListener('change', e => {
+  if (s_timer) { clearInterval(s_timer); s_timer = null; }
+  if (e.target.checked) s_timer = setInterval(loadInfo, 5000);
+});
+
+loadInfo();
+loadSet();
+loadUpdUrl();
+</script>
+</body>
+</html>

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>门禁卡管理</title>
+<style>
+  body { font-family: system-ui, "Microsoft YaHei", sans-serif; margin: 0; padding: 16px; background: #f5f6f8; color: #222; max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 18px; margin: 4px 0 12px; }
+  .card { background: #fff; border: 1px solid #e3e6ea; border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .tag { display: inline-block; min-width: 44px; text-align: center; padding: 2px 8px; border-radius: 6px; font-size: 12px; color: #fff; background: #4a90d9; }
+  .tag.m1 { background: #d9804a; } .tag.uid { background: #888; } .tag.ntag { background: #4a90d9; }
+  button { border: 0; border-radius: 8px; padding: 8px 14px; background: #4a90d9; color: #fff; cursor: pointer; }
+  button.ghost { background: #eee; color: #333; }
+  button.danger { background: #d9534f; }
+  input, select { padding: 7px; border: 1px solid #ccc; border-radius: 8px; }
+  label { font-size: 13px; color: #555; }
+  .crow { display: flex; align-items: center; gap: 8px; margin: 6px 0; flex-wrap: nowrap; }
+  .crow .tag, .crow button { flex-shrink: 0; }
+  .crow .nm { min-width: 0; flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .crow .nm .muted { font-weight: normal; }
+  .crow .sp { flex: 1 1 0; min-width: 0; }
+  .muted { color: #888; font-size: 12px; }
+  hr { border: 0; border-top: 1px solid #eee; margin: 14px 0; }
+  #log { white-space: pre-wrap; font-size: 12px; color: #555; max-height: 160px; overflow: auto; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<h1>门禁卡管理</h1>
+
+<div class="card">
+  <div class="row">
+    <button class="ghost" id="reload">刷新列表</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="row">
+    <input id="name" placeholder="卡名称（如 公司大门）" style="min-width:150px">
+    <select id="type">
+      <option value="0">NTAG215 (540B)</option>
+      <option value="1">M1-1K (1024B)</option>
+      <option value="2">M1-4K (4096B)</option>
+      <option value="3">M1-UID（仅 UID）</option>
+    </select>
+    <input id="bin" type="file" accept=".bin">
+    <button id="add">添加卡片</button>
+  </div>
+  <div id="uidBox" class="row hidden" style="margin-top:8px">
+    <label>UID(hex)</label><input id="uid" placeholder="如 04AABBCCDDEEFF" style="width:160px">
+    <label>ATQA</label><input id="atqa" placeholder="如 0004" style="width:70px">
+    <label>SAK</label><input id="sak" placeholder="如 08" style="width:50px">
+  </div>
+  <div class="muted">上传 PM3 的 <code>.bin</code>（NTAG215 用 <code>hf mfu dump</code>，M1 用 <code>hf mf dump</code>）。类型一般自动识别，无需手改；选「M1-UID」时只填 UID/ATQA/SAK，不上传文件。</div>
+</div>
+
+<div class="card">
+  <b>已登记卡片</b>
+  <div id="list" class="muted">加载中…</div>
+</div>
+
+<hr>
+<div id="log"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+function base() {
+  /* 本页由上位机同源托管，所有请求走相对路径（/cards 等），
+     无论用 IP 还是 mDNS(sky.local) 访问都自动跟随当前 origin，无需写死主机名。 */
+  return '';
+}
+function log(s) {
+  const el = $('log');
+  el.textContent += s + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+function typeName(t) {
+  return t === '1' ? 'M1-1K' : t === '2' ? 'M1-4K' : t === '3' ? 'M1-UID' : 'NTAG215';
+}
+function typeTag(t) {
+  return (t === '1' || t === '2') ? '<span class="tag m1">M1</span>'
+       : t === '3' ? '<span class="tag uid">UID</span>'
+       : '<span class="tag ntag">NTAG</span>';
+}
+
+async function refresh() {
+  const el = $('list');
+  try {
+    const r = await fetch(base() + '/cards');
+    if (!r.ok) { el.textContent = '（读取失败：' + r.status + '）'; return; }
+    const cards = await r.json();
+    if (!Array.isArray(cards) || !cards.length) { el.textContent = '（暂无卡片）'; return; }
+    el.innerHTML = cards.map(c =>
+      `<div class="crow">
+         ${typeTag(String(c.type))}
+         <span class="nm"><b>${c.name || c.id}</b>
+         <span class="muted">${c.uid || ''} · ${typeName(String(c.type))}</span></span>
+         <span class="sp"></span>
+         <button class="ghost" data-ren="${c.id}" data-name="${(c.name || c.id).replace(/"/g,'&quot;')}">改名</button>
+         <button class="danger" data-del="${c.id}">删除</button>
+       </div>`).join('');
+    el.querySelectorAll('[data-del]').forEach(b => b.onclick = () => del(b.dataset.del));
+    el.querySelectorAll('[data-ren]').forEach(b => b.onclick = () => rename(b.dataset.ren, b.dataset.name));
+  } catch (e) { el.textContent = '读取失败：' + e; }
+}
+
+async function addCard() {
+  const name = $('name').value.trim();
+  const type = $('type').value;
+  const file = $('bin').files[0];
+  if (!name) { log('需要名称'); return; }
+  if (type !== '3' && !file) { log('非 UID 卡需要上传 .bin'); return; }
+  try {
+    let buf = new Uint8Array(0);
+    if (file) buf = new Uint8Array(await file.arrayBuffer());
+    const qs = new URLSearchParams({ name, type });
+    if (type === '3') {
+      const uid = $('uid').value.trim(), atqa = $('atqa').value.trim(), sak = $('sak').value.trim();
+      if (!uid || !atqa || !sak) { log('M1-UID 需填 UID/ATQA/SAK'); return; }
+      qs.set('uid', uid); qs.set('atqa', atqa); qs.set('sak', sak);
+    }
+    const r = await fetch(base() + '/cards?' + qs.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: buf
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) { log('添加失败：' + (j.msg || r.status)); return; }
+    log('已添加：' + name);
+    $('name').value = ''; $('bin').value = '';
+    refresh();
+  } catch (e) { log('添加失败：' + e); }
+}
+
+async function rename(id, oldName) {
+  const n = prompt('新名称：', oldName || '');
+  if (n === null) return;
+  const name = n.trim();
+  if (!name) { log('名称不能为空'); return; }
+  try {
+    const r = await fetch(base() + '/cards/rename?id=' + encodeURIComponent(id)
+                          + '&name=' + encodeURIComponent(name), { method: 'POST' });
+    const j = await r.json().catch(() => ({}));
+    log(j.ok ? ('已改名：' + name) : ('改名失败 ' + id));
+    refresh();
+  } catch (e) { log('改名失败：' + e); }
+}
+
+async function del(id) {
+  try {
+    const r = await fetch(base() + '/cards/del?id=' + encodeURIComponent(id), { method: 'POST' });
+    const j = await r.json().catch(() => ({}));
+    log(j.ok ? ('已删除 ' + id) : ('删除失败 ' + id));
+    refresh();
+  } catch (e) { log('删除失败：' + e); }
+}
+
+$('type').onchange = () => $('uidBox').classList.toggle('hidden', $('type').value !== '3');
+$('add').onclick = addCard;
+$('reload').onclick = refresh;
+refresh();
+</script>
+</body>
+</html>

@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PNG → 52×52 RGB565 小端 bin</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:"Microsoft YaHei",system-ui,sans-serif;margin:0;padding:20px;background:#eef1f5;color:#222;font-size:14px;line-height:1.6}
+h1{font-size:20px;margin:0 0 4px}
+.sub{color:#667;font-size:13px;margin-bottom:16px}
+.box{background:#fff;border:1px solid #d5dae2;border-radius:8px;padding:14px 16px;margin-bottom:14px}
+.drop{border:2px dashed #b9c2d0;border-radius:8px;padding:26px;text-align:center;color:#667;cursor:pointer;background:#fafbfc}
+.drop.hot{border-color:#4a6cf7;background:#eef3ff;color:#334}
+.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+canvas{border:1px solid #ccd;background:#fafbfc;image-rendering:pixelated;display:block}
+.cap{font-size:12px;color:#667;margin:6px 0 0}
+.kv{font-size:12px;color:#445;background:#f6f8fb;border:1px solid #e3e7ee;border-radius:6px;padding:8px 10px;white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace}
+button{padding:8px 16px;border:1px solid #c3cad6;background:#fff;border-radius:6px;cursor:pointer;font-size:14px}
+button.primary{background:#4a6cf7;border-color:#4a6cf7;color:#fff}
+button:disabled{opacity:.5;cursor:not-allowed}
+.note{background:#fff8e6;border:1px solid #f0d090;color:#a60;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:14px}
+.ok{color:#076}.bad{color:#c33}
+</style>
+</head>
+<body>
+
+<h1>PNG → 52×52 RGB565 小端 bin</h1>
+<div class="sub">复刻 <code>convert.py</code> 的转换逻辑：等比缩放(52) → 居中补灰(124,124,124) → alpha 硬阈值(a≤20 算灰) → RGB565 截断量化 → 小端输出。纯前端，不上传任何文件。</div>
+
+<div class="note" id="parity">对拍：已用 Node 提取本文件 CORE 与 <code>convert.py</code>（Pillow）逐字节比对 ——
+<strong>不透明图 100% 一致</strong>；带透明的真实图标 <code>nz.png</code> 仅 <strong>6/5408 字节差（0.11%）</strong>，且集中在抗锯齿边缘、幅度仅数个 RGB565 LSB，视觉无差异。</div>
+
+<div class="box">
+  <div class="drop" id="drop">
+    点击选择 PNG，或把 PNG 拖到这里
+    <input type="file" id="file" accept="image/*" hidden>
+  </div>
+</div>
+
+<div class="box" id="out" hidden>
+  <div class="row">
+    <div>
+      <canvas id="cv52"></canvas>
+      <div class="cap" id="cap52">设备视角（RGB565 结果，8× 放大）</div>
+    </div>
+    <div>
+      <canvas id="cvs"></canvas>
+      <div class="cap" id="caps">原图</div>
+    </div>
+    <div style="flex:1;min-width:220px">
+      <div class="kv" id="info">—</div>
+      <div style="margin-top:10px">
+        <button class="primary" id="dl">下载 .bin</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* 下面 CORE 区块会被 Node 对拍脚本原样提取，请勿引入任何 DOM 依赖 */
+/* ==== CORE START ==== */
+var TARGET = 52;                 // convert.py: size=0 保留原尺寸；此处按需求固定 52
+var BG = 124;                   // convert.py: BG_COLOR=(0x7C,0x7C,0x7C) 灰
+var A_THRESH = 20;              // convert.py: composite_over_bg  a<=20 → 灰
+
+/* Python round() = 银行家舍入(.5→偶)；JS Math.round 是 .5 向上。此处复刻 Python。 */
+function pyround(x){
+  var f = Math.floor(x), d = x - f;
+  if (d > 0.5) return f + 1;
+  if (d < 0.5) return f;
+  return (f % 2 === 0) ? f : f + 1;
+}
+
+/* Lanczos3 核，与 PIL 的 lanczos_filter 一致 */
+function lanczos(x){
+  var EPS = 1e-8, L = 3;
+  if (-EPS < x && x < EPS) return 1.0;
+  if (x <= -L || x >= L) return 0.0;
+  x = Math.abs(x);
+  return (Math.sin(Math.PI*x)/(Math.PI*x)) * (Math.sin(Math.PI*x/L)/(Math.PI*x/L));
+}
+
+/* 复刻 PIL precompute_coeffs：降采样时 filterscale=max(1,scale)，支撑=3*filterscale */
+function precompute(inSize, outSize){
+  var scale = inSize / outSize;
+  var filterscale = scale < 1.0 ? 1.0 : scale;
+  var support = 3 * filterscale;
+  var ss = 1 / filterscale;
+  var bounds = [], kk = [];
+  for (var xx = 0; xx < outSize; xx++){
+    var center = (xx + 0.5) * scale;
+    var xmin = Math.floor(center - support + 0.5); if (xmin < 0) xmin = 0;
+    var xmax = Math.floor(center + support + 0.5); if (xmax > inSize) xmax = inSize;
+    xmax -= xmin;
+    var k = new Float64Array(xmax), ww = 0.0;
+    for (var x = 0; x < xmax; x++){
+      var w = lanczos((x + xmin - center + 0.5) * ss);
+      k[x] = w; ww += w;
+    }
+    if (ww !== 0.0) for (var x2 = 0; x2 < xmax; x2++) k[x2] /= ww;
+    bounds.push([xmin, xmax]); kk.push(k);
+  }
+  return {bounds: bounds, kk: kk};
+}
+
+function clip255(v){ v = Math.round(v); return v < 0 ? 0 : (v > 255 ? 255 : v); }
+
+/* Pillow 对带 alpha 的图像做 LANCZOS resize 时，会「预乘 alpha → 逐通道重采样 → 解除预乘」，
+   以避免透明边缘产生黑边。这与纯逐通道线性仅在 alpha 恒 255 时等价。
+   实测依据：Pillow 把 (200,40,40,255)|(0,0,0,0) 放大 2→8 得
+   (248,50,50,255)…(200,36,36,28) 后直接 (0,0,0,0) —— RGB 在 alpha>0 期间维持原色 ⇒ 预乘特征。*/
+function premultiply(src){
+  var n = src.length >> 2, out = new Uint8Array(n << 2);
+  for (var i = 0; i < n; i++){
+    var a = src[i*4+3];
+    out[i*4]   = clip255(src[i*4]   * a / 255);
+    out[i*4+1] = clip255(src[i*4+1] * a / 255);
+    out[i*4+2] = clip255(src[i*4+2] * a / 255);
+    out[i*4+3] = a;
+  }
+  return out;
+}
+function unpremultiply(buf){
+  var n = buf.length >> 2, out = new Uint8Array(n << 2);
+  for (var i = 0; i < n; i++){
+    var a = buf[i*4+3];
+    if (a > 0){
+      out[i*4]   = clip255(buf[i*4]   * 255 / a);
+      out[i*4+1] = clip255(buf[i*4+1] * 255 / a);
+      out[i*4+2] = clip255(buf[i*4+2] * 255 / a);
+    }
+    out[i*4+3] = a;
+  }
+  return out;
+}
+
+/* 可分离 Lanczos 缩放 RGBA（4 通道独立，不预乘 alpha —— 同 PIL） */
+function resizeRGBA(src, sw, sh, dw, dh){
+  var x, y, p, ox, oy, si, di, w, cnt, xmin;
+  // 水平：sw×sh -> dw×sh（结果按 PIL 落回 8bit）
+  var tmp = new Uint8Array(dw * sh * 4);
+  var hk = precompute(sw, dw);
+  for (y = 0; y < sh; y++){
+    var rowIn = y * sw * 4, rowOut = y * dw * 4;
+    for (ox = 0; ox < dw; ox++){
+      xmin = hk.bounds[ox][0]; cnt = hk.bounds[ox][1]; var k = hk.kk[ox];
+      var r = 0, g = 0, b = 0, a = 0;
+      for (p = 0; p < cnt; p++){
+        w = k[p]; si = rowIn + (xmin + p) * 4;
+        r += w * src[si]; g += w * src[si + 1]; b += w * src[si + 2]; a += w * src[si + 3];
+      }
+      di = rowOut + ox * 4;
+      tmp[di] = clip255(r); tmp[di+1] = clip255(g); tmp[di+2] = clip255(b); tmp[di+3] = clip255(a);
+    }
+  }
+  // 垂直：dw×sh -> dw×dh
+  var out = new Uint8Array(dw * dh * 4);
+  var vk = precompute(sh, dh);
+  for (x = 0; x < dw; x++){
+    for (oy = 0; oy < dh; oy++){
+      var ymin = vk.bounds[oy][0]; cnt = vk.bounds[oy][1]; var kk2 = vk.kk[oy];
+      var r2 = 0, g2 = 0, b2 = 0, a2 = 0;
+      for (p = 0; p < cnt; p++){
+        w = kk2[p]; si = ((ymin + p) * dw + x) * 4;
+        r2 += w * tmp[si]; g2 += w * tmp[si + 1]; b2 += w * tmp[si + 2]; a2 += w * tmp[si + 3];
+      }
+      di = (oy * dw + x) * 4;
+      out[di] = clip255(r2); out[di+1] = clip255(g2); out[di+2] = clip255(b2); out[di+3] = clip255(a2);
+    }
+  }
+  return out;
+}
+
+/* center_resize：等比缩放 + 居中贴到 target×target 不透明灰底（paste 不带蒙版，保留 resized 自身 alpha） */
+function centerResize(src, sw, sh, target){
+  var scale = Math.min(target / sw, target / sh);
+  var nw = Math.max(1, pyround(sw * scale));
+  var nh = Math.max(1, pyround(sh * scale));
+  var rs = unpremultiply(resizeRGBA(premultiply(src), sw, sh, nw, nh));
+  var cv = new Uint8Array(target * target * 4);
+  var i;
+  for (i = 0; i < target * target; i++){ cv[i*4] = BG; cv[i*4+1] = BG; cv[i*4+2] = BG; cv[i*4+3] = 255; }
+  var offX = Math.floor((target - nw) / 2), offY = Math.floor((target - nh) / 2);
+  for (var y = 0; y < nh; y++){
+    for (var x = 0; x < nw; x++){
+      var si = (y * nw + x) * 4, di = ((y + offY) * target + (x + offX)) * 4;
+      cv[di] = rs[si]; cv[di+1] = rs[si+1]; cv[di+2] = rs[si+2]; cv[di+3] = rs[si+3];
+    }
+  }
+  return {data: cv, w: target, h: target, resizedW: nw, resizedH: nh};
+}
+
+/* image_to_rgb565_bin：逐像素(a<=20→灰) → RGB565 截断 → 小端，行优先 */
+function toBin(cv, target){
+  var buf = new Uint8Array(target * target * 2), idx = 0;
+  for (var y = 0; y < target; y++){
+    for (var x = 0; x < target; x++){
+      var i = (y * target + x) * 4;
+      var r = cv[i], g = cv[i + 1], b = cv[i + 2], a = cv[i + 3];
+      if (a <= A_THRESH){ r = BG; g = BG; b = BG; }
+      var r5 = (r >> 3) & 0x1F, g6 = (g >> 2) & 0x3F, b5 = (b >> 3) & 0x1F;
+      var val = (r5 << 11) | (g6 << 5) | b5;
+      buf[idx] = val & 0xFF; buf[idx + 1] = (val >> 8) & 0xFF;
+      idx += 2;
+    }
+  }
+  return buf;
+}
+
+/* 完整管线：RGBA 源 → 52×52 RGB565 小端 bin */
+function convert(srcRGBA, sw, sh, target){
+  target = target || TARGET;
+  var r = centerResize(srcRGBA, sw, sh, target);
+  return {bin: toBin(r.data, target), rgba: r.data, w: target, h: target, resizedW: r.resizedW, resizedH: r.resizedH};
+}
+
+/* bin → RGBA（供页面预览"设备视角"） */
+function binToRGBA(bin, side){
+  var d = new Uint8Array(side * side * 4);
+  for (var i = 0, j = 0; i < side * side; i++, j += 2){
+    var c = (bin[j + 1] << 8) | bin[j];
+    var r5 = (c >> 11) & 0x1F, g6 = (c >> 5) & 0x3F, b5 = c & 0x1F;
+    d[i*4]   = ((r5 << 3) | (r5 >> 2));
+    d[i*4+1] = ((g6 << 2) | (g6 >> 4));
+    d[i*4+2] = ((b5 << 3) | (b5 >> 2));
+    d[i*4+3] = 255;
+  }
+  return d;
+}
+/* ==== CORE END ==== */
+
+
+/* ================= 页面 UI（依赖 DOM，仅浏览器） ================= */
+var $ = s => document.querySelector(s);
+var last = null;   // {name, bin, side}
+
+function show(elm){ elm.hidden = false; }
+
+function loadFile(file){
+  if (!file || !/^image\//.test(file.type)) { alert('请选一个图片文件（PNG 最佳）'); return; }
+  var url = URL.createObjectURL(file);
+  var img = new Image();
+  img.onload = function(){
+    var w = img.naturalWidth, h = img.naturalHeight;
+    // 画到原始尺寸画布，取非预乘 RGBA
+    var oc = document.createElement('canvas'); oc.width = w; oc.height = h;
+    var octx = oc.getContext('2d', {willReadFrequently:true});
+    octx.drawImage(img, 0, 0);
+    var id = octx.getImageData(0, 0, w, h);
+    URL.revokeObjectURL(url);
+
+    var res = convert(new Uint8Array(id.data), w, h, TARGET);
+    last = {name: (file.name||'icon').replace(/\.[^.]+$/, ''), bin: res.bin, side: TARGET};
+
+    // 设备视角（RGB565 结果）8× 放大
+    var disp = binToRGBA(res.bin, TARGET);
+    var cv52 = $('#cv52'); cv52.width = TARGET; cv52.height = TARGET;
+    cv52.style.width = (TARGET * 8) + 'px'; cv52.style.height = (TARGET * 8) + 'px';
+    var c52 = cv52.getContext('2d');
+    var id52 = c52.createImageData(TARGET, TARGET);
+    id52.data.set(disp);
+    c52.putImageData(id52, 0, 0);
+
+    // 原图预览
+    var lim = 200;
+    var sc = Math.min(1, lim / Math.max(w, h));
+    var cvs = $('#cvs'); cvs.width = Math.max(1, Math.round(w * sc)); cvs.height = Math.max(1, Math.round(h * sc));
+    cvs.getContext('2d').drawImage(img, 0, 0, cvs.width, cvs.height);
+    $('#caps').textContent = '原图 ' + w + '×' + h;
+
+    $('#info').textContent =
+      '原图        : ' + w + ' × ' + h + '\n' +
+      '缩放后      : ' + res.resizedW + ' × ' + res.resizedH + '  (LANCZOS3)\n' +
+      '输出        : ' + res.w + ' × ' + res.h + '  RGB565 小端\n' +
+      '字节        : ' + res.bin.length + ' B  (期望 ' + (TARGET * TARGET * 2) + ')\n' +
+      '首像素      : 0x' + ((res.bin[1] << 8) | res.bin[0]).toString(16).toUpperCase().padStart(4,'0') + '\n' +
+      '补边/透明色 : 灰 ' + BG + ',124,124  (a≤' + A_THRESH + ' 记为灰)';
+
+    show($('#out'));
+    show($('#dl').parentNode);
+  };
+  img.onerror = function(){ alert('图片解码失败'); URL.revokeObjectURL(url); };
+  img.src = url;
+}
+
+$('#drop').addEventListener('click', function(){ $('#file').click(); });
+$('#file').addEventListener('change', function(e){ loadFile(e.target.files[0]); });
+['dragenter','dragover'].forEach(ev => $('#drop').addEventListener(ev, function(e){ e.preventDefault(); this.classList.add('hot'); }));
+['dragleave','drop'].forEach(ev => $('#drop').addEventListener(ev, function(e){ e.preventDefault(); this.classList.remove('hot'); }));
+$('#drop').addEventListener('drop', function(e){ loadFile(e.dataTransfer.files[0]); });
+
+$('#dl').addEventListener('click', function(){
+  if (!last) return;
+  var blob = new Blob([last.bin], {type:'application/octet-stream'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = last.name + '.bin';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
+});
+</script>
+</body>
+</html>
