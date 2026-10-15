@@ -1,0 +1,2 @@
+# sky_badgedeck_config
+一个关于badgedeck项目的资源更新页面
