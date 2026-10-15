@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-# regen manifest.json + manifest_hash.php from resources/ (run from repo root)
+# regen manifest.json from resources/ (run from repo root)
 import hashlib, json, os
 
 RESOURCES = "resources"
 OUT_MANIFEST = os.path.join(RESOURCES, "manifest.json")
-OUT_GATE = "manifest_hash.php"
 
 
 def sha256_file(path):
@@ -29,10 +28,5 @@ text = json.dumps({"bundle_ver": 1, "files": files}, ensure_ascii=False, indent=
 with open(OUT_MANIFEST, "wb") as f:
     f.write(text.encode("utf-8"))
 
-gate = sha256_file(OUT_MANIFEST)
-with open(OUT_GATE, "wb") as f:
-    f.write((gate + "\n").encode("ascii"))
-
 print("files:", len(files))
 print("manifest:", OUT_MANIFEST)
-print("gate    :", OUT_GATE, "=", gate)
