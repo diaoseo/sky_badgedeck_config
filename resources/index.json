@@ -676,5 +676,11 @@
     "sk": "SKY-PN-ST-BL-ST",
     "img": "114",
     "type": 5
+  },
+  {
+    "idx": 114,
+    "sk": "SKY-PN-ST-ANC-HFS",
+    "img": "115",
+    "type": 2
   }
 ]

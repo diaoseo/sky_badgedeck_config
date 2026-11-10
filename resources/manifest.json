@@ -8,8 +8,8 @@
     },
     {
       "name": "allstar.json",
-      "size": 28179,
-      "sha256": "f1661d722805e6f60534f9d0cfd46981bea0eef3ce912d5e06f31bd17b6125be"
+      "size": 28552,
+      "sha256": "49375c4aeb67d1c3edeb279295585b23e74d7fbd81d2e06cacebf6dd3a0e364e"
     },
     {
       "name": "door_admin.html",
@@ -115,6 +115,11 @@
       "name": "icons/star_iconx114.bin",
       "size": 5408,
       "sha256": "79fb18051621e7ef440249cc8989453fefe46adaabd57ab94c383a7f7a3dc7ce"
+    },
+    {
+      "name": "icons/star_iconx115.bin",
+      "size": 5408,
+      "sha256": "64ce746ab3f7bea9b3f7334098d3aa3b840d5b9a1b4b0bf4d17c8df5b518709c"
     },
     {
       "name": "icons/star_iconx12.bin",
@@ -598,8 +603,8 @@
     },
     {
       "name": "index.json",
-      "size": 9628,
-      "sha256": "f2af201c809b49c2eca8f9f34e2f32a1e1b1967e0712adbfd6202d1f440874e6"
+      "size": 9716,
+      "sha256": "84d798252c8bc98016f1109175f7158b517c0aaef25cc0ceba3a3a852ac090e5"
     },
     {
       "name": "png2bin52.html",
@@ -690,6 +695,11 @@
       "name": "stars/113.json",
       "size": 250,
       "sha256": "62523317b3aa6f0281f1e5c400c059705b56113eb18ed8f0348856e276103c3e"
+    },
+    {
+      "name": "stars/114.json",
+      "size": 353,
+      "sha256": "9dc31ed45cc470961ef27345eefd94bef3554001827275187a893a4a9c0c48ea"
     },
     {
       "name": "stars/12.json",
