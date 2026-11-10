@@ -171,6 +171,7 @@ const SCHEMA = {
   ],
   allstar : [ // allstar.json 元素（== stars/{idx}.json）
     {k:'idx',  t:'number'},
+    {k:'sk',   t:'text'},          // ← SKU（与 index.json 同步）
     {k:'img',  t:'text'},
     {k:'name', t:'text'},
     {k:'cd',   t:'text'},          // ← 字符串
@@ -904,7 +905,7 @@ function drawAllstarMgr(){
   })();
 }
 
-function newAllstar(idx){ return {idx, img:'', name:'', cd:'', info:'', type:0}; }
+function newAllstar(idx){ return {idx, sk:'', img:'', name:'', cd:'', info:'', type:0}; }
 
 function addAllstar(){
   if(!allstarOn()){ showErr('徽章大全未加载，无法新增。请先点上方「⚡ 加载徽章大全」'); return; }
@@ -915,7 +916,7 @@ function addAllstar(){
   const it=newAllstar(idx);
   DB.allstar.push(it);
   DB.stars[String(idx)]=it;
-  DB.index.push({idx, img:'', type:0});
+  DB.index.push({idx, sk:'', img:'', type:0});
   UI.allstarIdx=DB.allstar.length-1; UI.pendingBin=null;
   markDirty('allstar'); markDirty('index');
   log(`已新增 idx=${idx}，请填写字段 → 上传 .bin → 保存`);
@@ -935,8 +936,8 @@ async function saveAllstar(){
   DB.stars[String(item.idx)]={...item};
   if(UI.pendingBin) files.push({name:pIcon(item.img), data:UI.pendingBin}); // ③ icons/*.bin
   const i=DB.index.findIndex(x=>String(x.idx)===String(item.idx));          // ④ index.json
-  if(i<0) DB.index.push({idx:item.idx, img:item.img, type:item.type});
-  else { DB.index[i].img=item.img; DB.index[i].type=item.type; }
+  if(i<0) DB.index.push({idx:item.idx, sk:item.sk||'', img:item.img, type:item.type});
+  else { DB.index[i].sk=item.sk||''; DB.index[i].img=item.img; DB.index[i].type=item.type; }
   files.push({name:CONF.pathIndex, data:jsBytes(DB.index)});
 
   try{

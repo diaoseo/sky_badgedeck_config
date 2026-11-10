@@ -3,13 +3,13 @@
   "files": [
     {
       "name": "admin.html",
-      "size": 52102,
-      "sha256": "f16c5a6d46af29b9f7b97794f3b7578f5242c5c4c46b723e712fd857c68398f5"
+      "size": 52233,
+      "sha256": "acdcbdd93d8dfd3ea0a62e7d7b2e6a132f8b9ef02b4f6d5a3d8b7971866175cd"
     },
     {
       "name": "allstar.json",
-      "size": 24779,
-      "sha256": "deca0b23d384302332a5d5ca58ce125819252bcef1daf60ce0d921cc0f7260c2"
+      "size": 28179,
+      "sha256": "f1661d722805e6f60534f9d0cfd46981bea0eef3ce912d5e06f31bd17b6125be"
     },
     {
       "name": "door_admin.html",
@@ -18,13 +18,13 @@
     },
     {
       "name": "fw/app.bin",
-      "size": 1690512,
-      "sha256": "3159114f702f9d6a65e6fdd4aa4caa0a810eec371e9ff04efeb24e2e34d32d42"
+      "size": 1692368,
+      "sha256": "5f878851187b8b7a7d7f8cd1f1f36ae22258cce3dd270945bacb783e4290c802"
     },
     {
       "name": "fw/nrf52.bin",
-      "size": 22844,
-      "sha256": "2d2fe2025b27070a411abe4bf6e9e17450ef4c6d04600d4bac068826cdc0c181"
+      "size": 22908,
+      "sha256": "deaf12c56393a234dbc62335b2e44442d2ed386b15ee4cf2ed601a895e3ec4af"
     },
     {
       "name": "icons/star_iconx1.bin",
@@ -598,8 +598,8 @@
     },
     {
       "name": "index.json",
-      "size": 6228,
-      "sha256": "3967b33473f389b40fbd04ea2a2416dbfe53f3439d12ca6380e5b6eaa1fe0162"
+      "size": 9628,
+      "sha256": "f2af201c809b49c2eca8f9f34e2f32a1e1b1967e0712adbfd6202d1f440874e6"
     },
     {
       "name": "png2bin52.html",

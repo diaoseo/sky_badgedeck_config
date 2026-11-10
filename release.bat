@@ -18,6 +18,9 @@ echo [1/4] regenerate manifest.json
 if errorlevel 1 ( echo [ERR] manifest regen failed; pause; exit /b 1 )
 
 echo [2/4] stage changes
+rem assume-unchanged files are silently skipped by "add -A"; clear flag then explicit add
+"%GIT%" update-index --no-assume-unchanged resources/manifest.json resources/fw/app.bin resources/fw/nrf52.bin 2>nul
+"%GIT%" add resources/manifest.json resources/fw/app.bin resources/fw/nrf52.bin
 "%GIT%" add -A
 
 rem --- commit only if there is something staged ---
