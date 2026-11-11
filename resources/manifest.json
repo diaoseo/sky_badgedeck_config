@@ -18,8 +18,8 @@
     },
     {
       "name": "fw/app.bin",
-      "size": 1692368,
-      "sha256": "5f878851187b8b7a7d7f8cd1f1f36ae22258cce3dd270945bacb783e4290c802"
+      "size": 1692848,
+      "sha256": "0fd97dc430ac2e983cf60801566572f11d814c19783e9ff38859a120e6b8bdbf"
     },
     {
       "name": "fw/nrf52.bin",
